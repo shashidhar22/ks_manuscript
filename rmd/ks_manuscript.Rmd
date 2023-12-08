@@ -1,0 +1,3843 @@
+---
+title: An R Markdown document converted from "../notebooks/ks_manuscript.ipynb"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(LymphoSeq2)
+library(forcats)
+library(lubridate)
+library(readxl)
+library(ggpubr)
+library(patchwork)
+library(vegan)
+library(tidygraph)
+library(ggraph)
+library(gtools)
+library(graphlayouts)
+library(Biostrings)
+library(corrgram)
+library(GGally)
+library(ggseqlogo)
+library(ggh4x)
+library(ggcorrplot)
+library(ggdendro)
+library("ltm")
+library("extrafont")
+library(svglite)
+library(UpSetR)
+library(patchwork)
+library(grid)
+library(gridExtra)
+library(ComplexUpset)
+library(Seurat)
+library(SeuratDisk)
+library(SeuratData)
+library(SingleCellExperiment)
+library(SeuratWrappers)
+library(org.Hs.eg.db)
+library(ggseqlogo)
+library(ggmsa)
+# Suppress summarise info
+options(dplyr.summarise.inform = FALSE)
+options(repr.matrix.max.rows=5, repr.matrix.max.columns=5)
+```
+
+## Path configuration
+
+### Configure main paths
+
+```{r}
+analysis_path <- "/path/to/kstme/folder" 
+tcr_sequencing_path <- "/path/to/ImmunoSEQ/folder" 
+tcr_database_path <- "/path/to/TCR/database/folder" 
+tcr_v3_sequencing_path <- "/path/to/Adaptive/v3/formated/ImmunoSEQ/data/" 
+scrna_sequencing_path <- "/path/to/scRNASeq/results/folder"
+results_path <- "/path/to/store/figures/tables/and/checkpoints" #You must create three sub-folders under path called figures, tables, checkpoints
+reference_path <- "/path/to/reference/genomes" 
+```
+
+### Metadata path configuration
+
+```{r}
+hippos_lab_metrics_path <- str_c(analysis_path, "metadata/Hippos_titer_values.xls", sep = "/")
+hippos_hiv_status_path <- str_c(analysis_path, "metadata/Hippos_hiv_status.xls", sep = "/")
+hippos_metadata_path <- str_c(analysis_path, "metadata/KSTME_main_metadata.csv", sep = "/")
+hippos_rnaseq_formating_path <- str_c(analysis_path, "metadata/KSTME_RNASeq_formating_metadata.csv", sep = "/")
+blghana_metadata_path <- str_c(analysis_path, "metadata/BLGhana_metadata.csv", sep = "/")
+bluganda_metadata_path <- str_c(analysis_path, "metadata/BLUganda_metadata.csv", sep = "/")
+public_rnaseq_metadata_path <- str_c(analysis_path, "metadata/RNASeq_metadata.csv", sep = "/")
+```
+
+### AIRR-Seq data paths
+
+```{r}
+hippos_path <- str_c(tcr_v3_sequencing_path, "ks", sep = "/")
+blghana_path <- str_c(tcr_sequencing_path, "TRB/Burkitt_Ghana", sep = "/")
+bluganda_path <- str_c(tcr_sequencing_path, "TRB/UCI", sep = "/")
+kspbmc_trb_path <- str_c(tcr_sequencing_path, "TRB/KS", sep = "/")
+kskobs_trb_path <- str_c(tcr_sequencing_path, "TRB/KOBS", sep = "/")
+ksu035_trb_path <- str_c(tcr_sequencing_path, "U035_KSHV", sep = "/")
+arks_pbmc_path <- str_c(tcr_sequencing_path, "ACSR_ARKS_2", sep = "/")
+```
+
+### AIRR-Seq ananlysis results
+
+```{r}
+# GLIPH analysis 
+bl_gliph_trb_input_path <- str_c(analysis_path, "gliph/bl_gliph_run/bl_gliph_trb_input_table.tsv", sep = "/")
+bl_gliph_clusters_path <- str_c(analysis_path, "gliph/bl_gliph_run/bl_gliph_cluster.csv", sep = "/")
+arks_gliph_input_path <- str_c(analysis_path, "gliph/arks_gliph_run/arks_gliph_run.tsv", sep = "/")
+arks_gliph_clusters_path <- str_c(analysis_path, "gliph/arks_gliph_run/arks_gliph_cluster.csv", sep = "/")
+kstme_gliph_input_path <-  str_c(analysis_path, "gliph/kstme_tumor_normal_final/gliph_trb_table.tsv", sep = "/")
+kstme_gliph_hla_input_path <- str_c(analysis_path, "gliph/kstme_tumor_normal_final/gliph_hla_table.tsv", sep = "/")
+kstme_gliph_clusters_path <- str_c(analysis_path, "gliph/kstme_tumor_normal_final/gliph_clusters_cluster.csv", sep = "/") 
+kstme_gliph_hlapred_path <- str_c(analysis_path, "gliph/kstme_tumor_normal_final/gliph_clusters_HLA.csv", sep = "/")
+# CompAIRR results
+comp_path <- str_c(tcr_sequencing_path, "Preprocessing/tables/compairr/compairr_output.tsv", sep = "/")
+# Public antigen paths
+vdjdb_slim_path <- str_c(tcr_database_path, "VdjDB/vdjdb.slim.txt", sep = "/")
+mcpas_tcr_path <- str_c(tcr_database_path, "McPASDB/McPAS-TCR.csv", sep = "/")
+```
+
+### RNA-Seq and Nanostring data paths
+
+```{r}
+hiv_fasta_path <- str_c(reference_path, "HIV_genomes/ncbi_dataset/data/GCF_000864765.1/protein.faa", sep = "/")
+hhv8_fasta_path <- str_c(reference_path, "KSHV_genomes/ncbi_dataset/data/GCF_000838265.1/protein.faa", sep = "/")
+cibersortx_results_path <- str_c(analysis_path, "cibersort_inputs/outputs", sep = "/")
+hiv_gene_expression_path <- str_c(analysis_path, "rnaseq/hiv/salmon/kstme_hiv_genes_counts.tsv", sep = "/")
+hhv8_gene_expression_path <- str_c(analysis_path, "rnaseq/hhv8/salmon/kstme_hhv8_genes_counts.tsv", sep = "/")
+ilc_path <- str_c(analysis_path, "CRI_iAtlas_Portal_end_epi.csv", sep = "/") 
+gtex_nses_expression_path <- str_c(analysis_path, "cibersort_inputs/quant/gtex_nses/gene_tpm_2017-06-05_v8_skin_not_sun_exposed_suprapubic.gct", sep = "/")
+gtex_ses_expression_path <- str_c(analysis_path, "cibersort_inputs/quant/gtex_ses/gene_tpm_2017-06-05_v8_skin_sun_exposed_lower_leg.gct", sep = "/")
+lidenge_batchone_expression_path <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/lidenge_batchone.tsv", sep = "/")
+lidenge_batchtwo_expression_path <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/lidenge_batchtwo.tsv", sep = "/")
+lidenge_batchthree_expression_path <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/lidenge_batchthree.tsv", sep = "/")
+lidenge_batchfour_expression_path <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/lidenge_batchfour.tsv", sep = "/")
+tso_expression_path <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/tso_epidemic.tsv", sep = "/")
+hippos_epidemic_expression <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/hippos_epidemic_merged.tsv", sep = "/")
+hippos_endemic_expression <- str_c(analysis_path, "rnaseq/human/cibersort_inputs/hippos_endemic_merged.tsv", sep = "/")
+# Targeted gene expression
+targerted_expression_path <- str_c(analysis_path, "nanostring/nanostring_counts.xlsx", sep = "/")
+```
+
+### scRNA-Seq GEX + VDJ data paths
+
+```{r}
+seurat_input_path <- str_c(scrna_sequencing_path, "KS/preprocess/object/TCRmerged", sep = "/")
+azimuth_reference_path <- str_c(analysis_path, "pbmc_multimodal.h5seurat", sep = "/")
+```
+
+### GLIPH2 results
+
+```{r}
+kspbmc_gliph_clusters_path <- str_c(analysis_path, "gliph/kspbmc_gliph_run/gliph_clusters_cluster.csv", sep = "/")
+kspbmc_gliph_hlapreds_path <- str_c(analysis_path, "gliph/kspbmc_gliph_run/gliph_clusters_HLA.csv", sep = "/")
+```
+
+### Output paths
+
+```{r}
+figures_path <- str_c(results_path, "figures", sep = "/")
+table_path <- str_c(results_path, "tables", sep = "/")
+checkpoint_path <- str_c(results_path, "checkpoints", sep = "/")
+```
+
+## Format metadata
+
+### HIPPOS
+
+#### Load raw titer tables from the HIPPOS study
+
+```{r}
+hippos_titer_table <- readxl::read_excel(hippos_lab_metrics_path) |>
+  dplyr::select(repertoire_id, ptid, collected_date_idi,
+    matches("visitcode|hivvl|cd4abs|cd8abs|colldt_kshv_or\\d+|titer_kshv_or\\d+|
+    colldt_kshv_pl\\d+|titer_kshv_pl\\d+"))
+kstme_titer_table
+```
+
+Next we are going to create a table that shows the study entry dates for each of the individuals enrolled in the HIPPOS cohort
+
+```{r}
+hippos_study_entry_table <- hippos_titer_table |> 
+  dplyr::select(ptid, matches("date|colldt"))  |> 
+  pivot_longer(-ptid, names_to = "group", values_to = "date") |> 
+  group_by(ptid) |> 
+  summarize(min_date = min(date, na.rm = TRUE)) |>
+  ungroup() |> 
+  dplyr::rename(patient_id = ptid, study_entry_date = min_date) |> 
+  mutate(patient_id = str_replace(str_remove(patient_id, "U"), "-", "_"),
+    study_entry_date = as_date(study_entry_date)) 
+hippos_study_entry_table
+```
+
+#### HIV titer values
+HIV titre values are just recorded at every entry for individuals with epidemic 
+KS. PTIDs in the titre tables do not match the rest of our metadata this needs
+to standardized first. The visit codes need to be transformed into consistent 
+factors. Dates need to be converted to relative time frames. When the viral 
+loads are below LOD, titre values are set to NA.
+
+```{r}
+hippos_hiv_titer_table <- read_excel(hippos_hiv_status_path) |> #Just one sheet in dataset
+  dplyr::select(-c(ptid, visitcode, accession_no, hivrna_comments, 
+    hivrna_detectedcat_bl, hivrna_dt_bl, hivrna_bl)) |> #We just need the HIV counts in blood by visit
+  dplyr::rename(patient_id = PTID, screen_date = hivscreendt, titre = hivrna,
+    collection_date = hivrna_dt, visit_code = visitname) |> #Rename variables 
+  filter(!is.na(hiv)) |> #Remove missing information
+  mutate(patient_id = str_replace(str_extract(patient_id, "008-\\d+"), 
+      "-", "_"), #Need to convert the PTIDs to the format compatible with sequencing data
+    collection_date = as_date(collection_date), 
+    screen_date = as_date(screen_date),
+    visit_code = factor(visit_code, levels = c("V00", "V01", "V02", "V03",
+      "V04", "V05", "V06", "V07", "V08", "V09", "V10", "V11")), #The max visit observed was V11
+    days_in_study = interval(screen_date, collection_date) %/% days(1),
+    category = "HIV", units = "copies/mL") |>
+  dplyr::select(patient_id, visit_code, titre, category, units, days_in_study) |>
+  arrange(patient_id, visit_code)
+hippos_hiv_titer_table
+```
+
+#### CD4 values 
+
+These follow the same table format as the CD8 table, so the code is 
+essentially reused here and in the next code chunk. It is important to note that
+CD4+ T-cell counts were mostly collected for just the individuals with epidemic
+KS. Though a handful of individuals with endemic KS do have CD4+ counts
+associated with their case
+
+```{r}
+hippos_cd4_titer_table <- hippos_titer_table |> 
+  dplyr::select(ptid, visitcode_idi, cd4abs_test_date_idi, cd4abs_idi) |> 
+  dplyr::rename(patient_id = ptid, visit_code = visitcode_idi, 
+    collection_date = cd4abs_test_date_idi, titre = cd4abs_idi) |>
+  mutate(patient_id = str_replace(str_remove(patient_id, "U"), "-", "_"),
+    collection_date = as_date(collection_date),
+    visit_code = factor(visit_code, levels = c("V00", "V01", "V02", "V03", 
+      "V04", "V05", "V06", "V07", "V08", "V09", "V10", "V11")),
+    category = "CD4_count", units = "cells/uL") |>
+  left_join(hippos_study_entry_table, by = "patient_id") |>
+  mutate(days_in_study = interval(study_entry_date, collection_date) %/% days(1)) |> 
+  ungroup() |> 
+  dplyr::select(-collection_date, -study_entry_date) |>
+  filter(!is.na(titre))
+hippos_cd4_titer_table
+```
+
+#### KSHV plasma titer
+Now we repeat this process for KSHV titres in peripheral blood samples
+
+```{r}
+hippos_plasma_titre_dates <- hippos_titer_table |> 
+  dplyr::select(ptid, visitcode_kshv_pl, matches("colldt_kshv_or1")) |>
+  pivot_longer(cols = -c(ptid, visitcode_kshv_pl)) |>
+  dplyr::rename(patient_id = ptid, visit_code = visitcode_kshv_pl, observation = name,
+    collection_date = value) |> 
+  mutate(patient_id = str_replace(str_remove(patient_id, "U"), "-", "_"),
+    collection_date = as_date(collection_date), 
+    observation = str_remove(observation, "colldt_kshv_"),
+    observation = str_replace(observation, "or", "pl")) |>
+  filter(!is.na(collection_date)) |> 
+  left_join(hippos_study_entry_table, by = "patient_id") |>
+  mutate(days_in_study = interval(study_entry_date, collection_date) %/% days(1))
+# Separate out titres for each swab at each time point
+hippos_kshv_plasma_titre_values <- hippos_titer_table |> 
+  dplyr::select(ptid, visitcode_kshv_pl, matches("titer_kshv_pl1")) |>
+  pivot_longer(cols = -c(ptid, visitcode_kshv_pl)) |>
+  dplyr::rename(patient_id = ptid, visit_code = visitcode_kshv_pl, observation = name,
+    titre = value) |> 
+  mutate(patient_id = str_replace(str_remove(patient_id, "U"), "-", "_"),
+    observation = str_remove(observation, "titer_kshv_")) |>
+  filter(!is.na(titre)) 
+# Merge the dates and titres on patient_id, visit_code, and swab number. As 
+# mentioned earlier, for now, we are just keeping one titre value for each
+# visit. For each visit the lowest value of days_in_study and the highest value
+# of titre in recorded
+hippos_kshv_plasma_titre_table <- left_join(hippos_plasma_titre_dates,
+    hippos_kshv_plasma_titre_values,
+    by = c("patient_id", "visit_code", "observation")) |>
+  dplyr::select(-study_entry_date) |>
+  ungroup() |> 
+  group_by(patient_id, visit_code) |> 
+  summarize(titre = max(titre), days_in_study = min(days_in_study)) |> 
+  ungroup() |> 
+  mutate(visit_code = factor(visit_code, levels = c("V00", "V01", "V02", "V03", 
+    "V04", "V05", "V06", "V07", "V08", "V09", "V10", "V11")),
+    category = "KSHV_plasma", units = "copies/mL")
+hippos_kshv_plasma_titre_table
+```
+
+```{r}
+# Now we can merge all six tables into one titre table for whole study
+hippos_titer_tables <- bind_rows(hippos_hiv_titer_table, hippos_cd4_titer_table, 
+  hippos_kshv_plasma_titre_table)
+hippos_titer_tables
+```
+
+```{r}
+# By pivoting wide, we can generate a table with one row for each of the
+# subjects in the study. 
+hippos_titre_table_wide <- hippos_titer_tables |> 
+  pivot_wider(id_cols = c(patient_id, visit_code), 
+    names_from = category, values_from = titre) |>
+  group_by(patient_id, visit_code) |>
+  summarize_all(max)
+hippos_titre_table_wide
+```
+
+### Sequencing metadata
+The current study was concieved with a subset of the Hippos datasets where we
+had collected many modalities of sequencing data. This dataset will be reffered
+to as the KSTME dataset. A total of 622 TRB repertoires from the 130 individuals in the study. With a total of 436 repertoires (74 PBMCs, 84 NAT, 268 Tumor, and 10 scREP) from individuals with epidemic KS and 152 repertoires (42 PBMCs, 26 NAT, 80 Tumor, and 4 scREP) from individuals with endemic KS. This is accompanied with 27 nanostring datasets and 52 bulk RNA-Seq datasets from Endemic and Epidemic KS lesions. For each of the individuals with sequencing data, we also have accompanying HLA typing information. 
+
+```{r}
+hippos_sequencing_table <- readr::read_csv(hippos_metadata_path, 
+  show_col_types = FALSE)
+hippos_sequencing_table
+```
+
+#### Merge laboratory and sequencing metadata
+The sequencing data was obtained from a subset of tissue that was used to 
+quantify the laboratory metrics. Therefore we can merge the two tables by 
+patient ID and visit code
+
+```{r}
+hippos_metadata_table <- left_join(hippos_sequencing_table, hippos_titre_table_wide,
+    by = c("patient_id", "visit_code")) |>
+  mutate(phenotype = case_when(
+    hiv_status == "Positive" & ks_status == "Positive" ~ "Epidemic KS",
+    hiv_status == "Negative" & ks_status == "Positive" ~ "Endemic KS",
+    hiv_status == "Negative" & ks_status == "Negative" ~ "Control"))
+hippos_metadata_table
+```
+
+### BL metadata
+As a way to benchmark the T-cell responses in KS, we compare the diversity of 
+the T-cell repertoire of the KS TME with the repertoire of other Pathogen
+associated malingnancies like BL. Here we use two datasets of pediatric BL from
+Ghana and Uganda. But before we load the datasets, lets format the metadata
+
+```{r}
+blghana_metadata_table <- read_csv(blghana_metadata_path, show_col_types = FALSE) |>
+  dplyr::select(fileName, tissueType) |> 
+  dplyr::rename(trb_repertoire_id = fileName, tissue_type = tissueType) |>
+  mutate(patient_id = str_extract(trb_repertoire_id, "\\w+"),
+    cohort = "BL - Ghana",
+    phenotype = "BL") 
+head(blghana_metadata_table)
+```
+
+```{r}
+bluganda_metadata_table <- read_csv(bluganda_metadata_path,
+  show_col_types = FALSE, name_repair = "unique_quiet") |>
+  dplyr::select(samples, patientID, tissueType, aAllele1:DRB345allele2, HIVStatus,
+    EBVstatus, BL, vitalStatus, sex, age) |> 
+  dplyr::rename(trb_repertoire_id = samples, tissue_type = tissueType,
+    hiv_status = HIVStatus, ebv_status = EBVstatus, bl_status = BL,
+    died = vitalStatus, gender = sex, patient_id = patientID) |>
+  mutate(bl_status = recode(bl_status, "Yes" = "Positive", "No" = "Negative"),
+    died = recode(died, "Alive" = "No", "Dead" = "Yes"),
+    patient_id = as.character(patient_id),
+    cohort = "BL - Uganda",
+    phenotype = "BL") 
+head(bluganda_metadata_table)
+```
+
+### Merge metadata
+
+In the present study we will use multiple sources of data:
+1. AIRR-Seq, RNA-Seq and Nanostring data from the HIPPOS cohort
+2. RNA-Seq data from Tso et al.,
+3. RNA-Seq data from Lidenge et al.,
+4. AIRR-Seq data from pediatric BL from Ghana and Uganda
+
+In the next few codeblock we will compile a joint `study_metdata` and summarize
+the samples counts of the study
+
+```{r}
+study_metadata <- bind_rows(hippos_metadata_table, blghana_metadata_table,
+  bluganda_metadata_table) |> 
+  mutate(repertoire_id = if_else(is.na(repertoire_id), trb_repertoire_id, 
+    repertoire_id))
+study_metadata
+```
+
+## Section 1: Viral gene expression, and immune cell type abundance in KS tumor and control tissue
+
+### Prepare HIV gene expression table
+
+```{r}
+suppressWarnings({
+hiv_dictionary <- read.table(hiv_fasta_path, sep="\n")$V1[grep(">", readLines(hiv_fasta_path))] |>
+  as_tibble() |>
+  separate(value, into = c("pid", "gene_name", "org"), sep = "\\s") |>
+  mutate(pid = str_remove(pid, ">"),
+    gene_name = if_else(gene_name == "Envelope", "Env", gene_name)) |>
+    pull(gene_name)
+names(hiv_dictionary) <- read.table(hiv_fasta_path, sep="\n")$V1[grep(">", readLines(hiv_fasta_path))] |>
+  as_tibble() |>
+  separate(value, into = c("pid", "gene_name", "org"), sep = "\\s") |>
+  mutate(pid = str_remove(pid, ">"),
+    gene_name = if_else(gene_name == "Envelope", "Env", gene_name)) |>
+    pull(pid)
+head(hiv_dictionary)})
+```
+
+```{r}
+# Prepare HIV gene expression table
+hiv_expression_table <- read_tsv(hiv_gene_expression_path,
+    show_col_types = FALSE) |>
+  mutate(Name = str_remove_all(Name, "lcl\\|NC_001802.1_cds_|_\\d+$"),
+    Name = hiv_dictionary[Name]) 
+hiv_gene_names <- hiv_expression_table |>
+  pull(Name)
+head(hiv_expression_table)
+```
+
+### Prepare HHV8 gene expression tables
+
+```{r}
+# Prepare HHV8 gene dictionary
+suppressWarnings({
+hhv8_dictionary <- read.table(hhv8_fasta_path, sep="\n")$V1[grep(">", readLines(hhv8_fasta_path))] |>
+  as_tibble() |>
+  separate(value, into = c("pid", "gene_name", "org"), sep = "\\s") |>
+  mutate(pid = str_remove(pid, ">"),
+    gene_name = if_else(gene_name == "Envelope", "Env", gene_name)) |>
+    pull(gene_name)
+names(hhv8_dictionary) <- read.table(hhv8_fasta_path, sep="\n")$V1[grep(">", readLines(hhv8_fasta_path))] |>
+  as_tibble() |>
+  separate(value, into = c("pid", "gene_name", "org"), sep = "\\s") |>
+  mutate(pid = str_remove(pid, ">"),
+    gene_name = if_else(gene_name == "Envelope", "Env", gene_name)) |>
+    pull(pid)
+head(hhv8_dictionary)})
+```
+
+```{r}
+# Prepare HHV8 gene expression data
+hhv8_expression_table <- read_tsv(hhv8_gene_expression_path,
+    show_col_types = FALSE) |>
+  dplyr::mutate(Name = str_remove_all(Name, "lcl\\|NC_009333.1_cds_|_\\d+$"),
+    Name = hhv8_dictionary[Name])
+# Break up KSHV genes into groups based on stage of expression
+#https://journals.plos.org/plospathogens/article?id=10.1371/journal.ppat.1001013#s5
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3894221/
+kshv_groups <- c("vIRF-3" = "La", "ORF73" = "La", "K4.2" = "IE", "ORF45" = "IE",
+  "ORF48" = "IE", "ORF50" = "IE", "K8" = "IE", "ORF70" = "E1", "ORF10" = "E1",
+  "ORF56" = "E1", "ORF11" = "E1", "K3" = "E1", "ORF40" = "E1", "ORF59" = "E1",
+  "K15" = "E1", "ORF54" = "E1", "ORF2" = "E2", "K1" = "E2", "K2" = "E2",
+  "ORF46" = "E2", "ORF9" = "E2", "K5" = "E2", "K7" = "E2", "K6" = "E2",
+  "vIRF-1" = "E2", "K14" = "E2", "vIRF-2" = "E2", "ORF49" = "E2", "ORF74" = "E2",
+  "ORF7" = "E2", "ORF6" = "E2", "ORF44" = "E3", "ORF31" = "E3", "ORF19" = "E3",
+  "ORF37" = "E3",  "ORF57" = "E3", "ORF17" = "E3", "ORF36" = "E3", "ORF29" = "E3",
+  "ORF21" = "E3", "ORF61" = "E3", "ORF60" = "E3", "ORF66" = "E3", "ORF16" = "E3",
+  "vIRF-4" = "E3", "ORF69" = "E3", "ORF23" = "L4", "ORF22" = "L4", "ORF25" = "L4",
+  "ORF20" = "L4", "ORF26" = "L4", "ORF24" = "L4", "ORF27" = "L4", "ORF30" = "L4",
+  "ORF28" = "L4", "ORF34" = "L4", "ORF18" = "L4", "ORF35" = "L4", "ORF63" = "L4",
+  "ORF62" = "L4", "ORF65" = "L4", "ORF32" = "L4", "ORF38" = "L4", "ORF33" = "L4", 
+  "ORF43" = "L4", "ORF64" = "L4", "ORF67" = "L4", "ORF68" = "L4", "ORF42" = "L5",
+  "ORF4" = "L5", "ORF39" = "L5", "K8.1" = "L5", "ORF8" = "L5", "ORF47" = "L5",
+  "ORF75" = "L5", "ORF58" = "L5", "ORF52" = "L5", "ORF53" = "L5", "ORF55" = "L5",
+  "K12" = "La", "K4" = "E1", "K4.1" = "E1", "ORF17.5" = "E2", "ORF67A" = "L5",
+  "ORF71" = "La", "ORF72" = "La" )
+  head(hhv8_expression_table)
+```
+
+### Prepare CibersortX results
+
+```{r}
+# Load and format CibersortX results
+cibersort_table <- list.files(cibersortx_results_path, pattern = "hippos",
+    full.names = TRUE) |>
+    map_df(~read_csv(.x, show_col_types = FALSE)) |>
+    mutate(Mixture = str_remove(Mixture, "_quant"),
+        Mixture = str_replace_all(Mixture, "-", "_"),
+        Mixture = str_extract(Mixture, "008_\\d+_\\w")) |>
+    dplyr::select(-`P-value`, -Correlation, -RMSE) |> 
+    pivot_longer(c(-Mixture, -`Absolute score (sig.score)`), names_to = "cell_type", values_to = "score") |>
+    mutate(percentage = (score*100)/`Absolute score (sig.score)`) |>
+    pivot_wider(id_cols = Mixture, names_from = cell_type, values_from = percentage)
+cibersort_table 
+```
+
+### Format HIV table to include all samples form the study
+
+```{r}
+# Generate HIV sample list table
+# We will need this table to generate the final heatmap. 
+# Since many samples do not show expression of HIV, this table will help
+# generate a full table with 51 samples
+sample_list <- cibersort_table |> 
+  pull(Mixture)
+hiv_gene_list <- hiv_expression_table |>
+  pull(Name)
+
+hiv_sample_table <- expand_grid(sample_list, hiv_gene_list) |>
+  mutate(tpm = NULL) |>
+  dplyr::rename(samples = sample_list, Name = hiv_gene_list)
+sample_table <- cibersort_table |> 
+  pull(Mixture) |> 
+  as_tibble() |> 
+  dplyr::rename(samples = value)
+head(hiv_sample_table)
+```
+
+```{r}
+# Prep RNA-Seq metadata
+rna_seq_metadata <-  study_metadata |> 
+  filter(!is.na(rna_libraries)) |> 
+  dplyr::select(cohort, repertoire_id, rna_libraries, tissue_type, phenotype)
+rna_seq_metadata
+```
+
+### Figure 1
+
+```{r}
+plot_order <- cibersort_table |> 
+    left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+    dplyr::arrange(phenotype, `Macrophages M2`) |>
+    pull(Mixture)
+```
+
+```{r}
+# Plot cibersortX panel
+cibersort_plot <- cibersort_table |>
+  pivot_longer(cols = `B cells naive`:Neutrophils, names_to = "cell_type", 
+    values_to = "abundance" ) |> 
+  left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+  mutate(Mixture = factor(Mixture, levels = plot_order)) |>
+  ggplot(aes(x = cell_type, y = Mixture, fill = abundance)) +
+  geom_tile(color = "white", lwd = 0.25, linetype = 1) +
+  labs(y = "TRB repertoire ID", x = "Cell type", fill = "Cell type\nabundance") +
+  ggtitle("Immune cell-type\ncomposition") +
+  #scale_fill_gradientn(colors = rev(c('#b2182b','#d6604d','#d1e5f0'))) +
+  scale_fill_viridis_b(option = "plasma") + 
+  theme_classic(base_size = 20) +
+  facet_grid(rows = vars(phenotype),scales = "free", space = "free", margins = F) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, face="bold"),  
+    axis.title.x = element_blank(), 
+    axis.text.y = element_blank(), axis.line.y = element_blank(), 
+    axis.title.y = element_blank(), axis.ticks.y = element_blank(), 
+    strip.background.x = element_blank(), 
+    strip.background.y = element_rect(linewidth = 2, color = "black", linetype = 1), 
+    strip.text.y.right = element_text(face = "bold"),
+    strip.placement = "inside", plot.title = element_text(face = "bold")) 
+```
+
+```{r}
+# Plot HIV gene expression panel
+hiv_plot <- hiv_expression_table |>
+  pivot_longer(-Name, names_to = "samples",
+    values_to = "tpm") |>
+  full_join(hiv_sample_table) |> 
+  left_join(rna_seq_metadata, by = c("samples" = "repertoire_id")) |>
+  mutate(tpm = if_else(tpm == 0, NA_integer_, tpm),
+    samples = factor(samples, levels = plot_order)) |>
+  ggplot(aes(x = Name, y = samples, fill = tpm)) +
+  geom_tile(color = "white", lwd = 0.25, linetype = 1) +
+  labs(x = "Gene", fill = "TPM") +
+  ggtitle("HIV gene\nexpression") +
+  scale_fill_viridis_c(option = "viridis", 
+    trans = scales::pseudo_log_trans(sigma = 0.001),
+    breaks = c(0, 10, 100, 1000, 10000, 100000, 1000000)) +
+  theme_classic(base_size = 20) +
+  facet_grid(rows = vars(phenotype), scales = "free", space = "free", 
+    margins = F) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, face="bold"), 
+    axis.title.x = element_blank(), legend.position = "none", 
+    axis.text.y = element_blank(), axis.line.y = element_blank(), 
+    axis.title.y = element_blank(), axis.ticks.y = element_blank(),  
+    strip.background = element_blank(), strip.text.y = element_blank(),
+    strip.placement = "inside", plot.title = element_text(face = "bold")) 
+```
+
+```{r}
+# Plot KSHV gene expression
+kshv_plot <- hhv8_expression_table |>
+  pivot_longer(col = `008_001_B`:`008_234_D`, names_to = "samples",
+    values_to = "tpm") |>
+  mutate(tpm = if_else(tpm == 0, NA_integer_, tpm)) |>
+  right_join(sample_table) |> 
+  left_join(rna_seq_metadata, by = c("samples" = "repertoire_id")) |>
+  mutate(stage = factor(kshv_groups[Name], 
+    levels =c("La", "IE", "E1", "E2", "E3", "L4", "L5", NA)),
+    samples = factor(samples, levels = plot_order)) |>
+  ggplot(aes(x = Name, y = samples, fill = tpm)) +
+  geom_tile(color = "white", lwd = 0.25, linetype = 1) +
+  labs(x = "Gene", fill = "TPM", y = "Sample ID") +
+  ggtitle("KSHV gene\nexpression") +
+  scale_fill_viridis_c(option = "viridis", 
+    trans = scales::pseudo_log_trans(sigma = 0.001),
+    breaks = c(0, 10, 100, 1000, 10000, 100000, 1000000)) +
+  theme_classic(base_size = 20) +
+  facet_grid(rows = vars(phenotype), cols = vars(stage), scales = "free", 
+    space = "free", margins = F)  +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, face="bold"),
+    axis.text.y = element_text(face = "bold"),
+    axis.title.x = element_blank(),panel.spacing.x = unit(0.25, "lines"),
+    strip.text.y = element_blank(), strip.text.x = element_text(face="bold"),
+    strip.placement = "inside", axis.title.y = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")) 
+```
+
+```{r}
+# Plot cell type boxplot
+cohort_palette <- c("Epidemic KS" = "#e41a1c", "Endemic KS" = "#377eb8")
+cibersort_boxplots <- cibersort_table |>
+  pivot_longer(`B cells naive`:Neutrophils, names_to = "cell_type", 
+    values_to = "abundance") |>
+  filter(cell_type %in% c("Macrophages M2", 
+    "T cells CD4 memory activated", "T cells CD4 memory resting",
+    "T cells CD8", "T cells follicular helper")) |>
+  left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+  mutate(cell_type = case_when(cell_type == "T cells CD4 memory activated" ~ "T cells CD4\nmemory activated",
+    cell_type == "T cells CD4 memory resting" ~ "T cells CD4\nmemory resting",
+    cell_type == "T cells follicular helper" ~ "T cells\nfollicular helper",
+    TRUE ~ cell_type)) |>
+  ggboxplot(x = "phenotype", y = "abundance", color = "phenotype", 
+    facet.by = "cell_type", nrow = 1) |>
+  ggpar(xlab = "Cohort", ylab = "Abundance", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 20), ylim = c(0, 60),
+    legend = "right", palette = cohort_palette,
+    panel.labs.font = list(face = "bold")) +
+  stat_compare_means(comparisons = list(c("Endemic KS", "Epidemic KS")),
+    size = 5, label = "p.signif") +
+  theme(strip.text.x = element_text(face="bold"),
+    axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+    axis.title = element_text(face = "bold"))
+```
+
+```{r}
+## Plot correlation scatter plot for M2 macrophages and CD8 T-cells
+tcell_mac_corr_plot <- cibersort_table |>
+    left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+    ggplot(aes(x = `Macrophages M2`, y = `T cells CD8`, color = phenotype)) +
+    geom_point() +
+    labs(ylab = "T cells CD8 (%)",
+        xlab = "Macrophage M2 (%)") +
+    geom_smooth(method = "glm", aes(fill=phenotype)) +
+    ylim(0, 50) + 
+    stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, size = 8)+
+    scale_color_manual(values = cohort_palette) + 
+    scale_fill_manual(values = cohort_palette) + 
+    theme_classic(base_size = 20) +
+    theme(axis.title = element_text(face = "bold"),
+        legend.position = "none")
+```
+
+```{r}
+# Assemble all panels of Figure 1
+figure_one_layout <- "
+1111111111111111112233333
+1111111111111111112233333
+1111111111111111112233333
+1111111111111111112233333
+4444444444444444444455555"
+suppressWarnings({
+figure_one <- kshv_plot +  hiv_plot +
+  cibersort_plot  +  cibersort_boxplots + tcell_mac_corr_plot +
+  plot_layout(design = figure_one_layout, guides = "collect",
+    widths =c(9, 1, 2.5, 10, 2.5)) +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan'))
+ggsave(str_c(figures_path, "pdf", "Figure_one.pdf", sep = "/"), figure_one, 
+  limitsize = FALSE, width = 30, height = 24, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_one.svg", sep = "/"), figure_one,
+  limitsize = FALSE, width = 30, height = 24, device = "svg")
+ggsave(str_c(figures_path, "png", "Figure_one.png", sep = "/"), figure_one,
+  limitsize = FALSE, width = 30, height = 24, device = "png")})
+```
+
+### Supplementary figure 1:
+
+```{r}
+phenotype_table <- study_metadata |> 
+    filter(cohort == "Hippos") |>
+    dplyr::select(patient_id, phenotype) |>
+    mutate(phenotype = replace_na(phenotype, "Epidemic KS")) |>
+    distinct()
+```
+
+```{r}
+targeted_viral_expression <- read_excel(targerted_expression_path, sheet = 4)
+supplementary_figure_one <- targeted_viral_expression  |>
+    pivot_longer(c(-Target, -`Probe Name`), names_to = "sample", values_to = "l2fc") |>
+    mutate(sample = case_when(sample == "8020" ~ "008_020",
+        sample == "030-B" ~ "008_030", sample == "028-B" ~ "008_028",
+        sample == "024-B" ~ "008_024", sample == "013-B" ~ "008_013",
+        sample == "008-C" ~ "008_008", sample == "001-B" ~ "008_001",
+        TRUE ~ str_replace(sample, "-", "_")),
+      sample = factor(sample, levels = c("008_001", "008_008", "008_013",
+          "008_020", "008_024", "008_028", "008_030", "008_036", "008_037",
+          "008_052", "008_059", "008_061", "008_062", "008_075", "008_085",
+          "008_088", "008_092", "008_093", "008_097", "008_099", "008_101",
+          "008_106"))) |>
+    left_join(phenotype_table, by = c("sample" = "patient_id")) |>
+    arrange(sample) |>
+    ggplot(aes(y = `sample`, x = `Probe Name`, fill = l2fc)) +
+    geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+    labs(x = "Probe name", y = "Sample", fill = "Log2FC") +
+    #scale_fill_gradientn(colors = rev(c('#b2182b','#d6604d','#d1e5f0'))) +
+    scale_fill_viridis_b(breaks = c(2,4,6,8,10)) +
+    theme_classic(base_size = 20) +
+    facet_grid(cols = vars(Target), rows = vars(phenotype), 
+      scales = "free", space = "free", margins = F) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, face = "bold", family = 'NimbusSan'),
+        axis.text.y = element_text(face = "bold", family = 'NimbusSan'),
+         strip.text.x = element_text(face="bold", family = 'NimbusSan'),
+         strip.text.y = element_text(face = "bold", angle = 0, family = 'NimbusSan'),
+        axis.title.x = element_blank(), 
+        axis.line.y = element_blank(), legend.key.size = unit(1, "cm"),
+        axis.title.y = element_blank(), axis.ticks.y = element_blank()) 
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_one.pdf", sep = "/"), supplementary_figure_one, 
+  limitsize = FALSE, width = 20, height = 12, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_one.svg", sep = "/"), supplementary_figure_one,
+  limitsize = FALSE, width = 20, height = 12, device = "svg")
+ggsave(str_c(figures_path, "png", "Supplementary_figure_one.png", sep = "/"), supplementary_figure_one,
+  limitsize = FALSE, width = 20, height = 12, device = "png")
+```
+
+### Supplementary figure 2:
+
+```{r}
+readCiberSort <- function(path) {
+    study = basename(path)
+    cib_table <- read_csv(path, show_col_types = FALSE) |>
+        mutate(Mixture = str_remove(Mixture, "_quant"),
+            cohort = study,
+            cohort = case_when(cohort == "gtex_nes.csv" ~ "Non sun-exposed skin",
+                cohort == "gtex_ses.csv" ~ "Sun-exposed skin",
+                str_detect(cohort, "lid") ~ "Lidenge et al.",
+                str_detect(cohort, "tso") ~ "Tso et al."))
+    return(cib_table)
+}
+
+
+public_cibersort_table <- list.files(cibersortx_results_path,
+        pattern = "lid|tso|gtex", full.names = TRUE) |>
+    map_df(readCiberSort)  |>
+    dplyr::select(-`P-value`, -Correlation, -RMSE) |> 
+    pivot_longer(c(-Mixture, -cohort,  -`Absolute score (sig.score)`),
+        names_to = "cell_type", values_to = "score") |>
+    mutate(percentage = (score*100)/`Absolute score (sig.score)`) |>
+    pivot_wider(id_cols = c(Mixture, cohort), names_from = cell_type,
+        values_from = percentage)
+public_cibersort_table
+```
+
+```{r}
+supplementary_figure_two_heatmap <- public_cibersort_table |>
+  pivot_longer(cols = `B cells naive`:Neutrophils, names_to = "cell_type", 
+    values_to = "abundance" ) |>
+  mutate(Mixture = if_else(cohort == "Lidenge et al.", 
+    str_extract(Mixture, "SRR\\d+$"), Mixture)) |>
+  left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+  mutate(phenotype = case_when(cohort.x %in% c("Non sun-exposed skin", "Sun-exposed skin") & is.na(tissue_type) ~ "Control", 
+    cohort.x == "Lidenge et al." & tissue_type == "Normal" ~ "Con-\ntrol",
+    tissue_type == "Tumor" & phenotype == "Endemic KS" ~ "Ende-\nmic KS", 
+    cohort.x == "Tso et al." & tissue_type == "Tumor" & phenotype == "Epidemic KS" ~ "Epide-\nmic KS", 
+    tissue_type == "Tumor" & phenotype == "Epidemic KS" ~ "Epidemic KS",
+    TRUE ~ tissue_type),
+    cohort.x = factor(cohort.x, levels = c("Lidenge et al.", "Tso et al.", "Non sun-exposed skin", "Sun-exposed skin")),
+    phenotype = factor(phenotype, levels = c("Con-\ntrol", "Control", "NAT", "Ende-\nmic KS", "Endemic KS", "Epide-\nmic KS", "Epidemic KS"))) |>
+  ggplot(aes(y = cell_type, x = Mixture, fill = abundance)) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+  labs(x = "Sample", y = "Cell type", fill = "Cell type\nabundance") +
+  #scale_fill_gradientn(colors = rev(c('#b2182b','#d6604d','#d1e5f0'))) +
+  scale_fill_viridis_b(option = "plasma") + 
+  theme_classic(base_size = 20) +
+  facet_nested(cols = vars(cohort.x, phenotype),scales = "free", space = "free", margins = F) +
+  theme(axis.text.x = element_blank(), strip.background = element_blank(),
+    axis.title.x = element_blank(), strip.text = element_text(face = "bold"),
+    axis.text.y = element_text(face = "bold"), axis.line = element_blank(), 
+    axis.ticks = element_blank(),
+    text = element_text(family = 'NimbusSan')) 
+```
+
+```{r}
+supp_cohort_palatte <- c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8", "Control" = "#67a628")
+
+
+supplementary_figure_two_corrplot <- public_cibersort_table |>
+    mutate(Mixture = if_else(cohort == "Lidenge et al.", 
+    str_extract(Mixture, "SRR\\d+$"), Mixture)) |>
+    left_join(rna_seq_metadata, by = c("Mixture" = "repertoire_id")) |>
+    mutate(phenotype = case_when(cohort.x %in% c("Non sun-exposed skin", "Sun-exposed skin") & is.na(tissue_type) ~ "Control", 
+    cohort.x == "Lidenge et al." & tissue_type == "Normal" ~ "Control",
+    tissue_type == "Tumor" & phenotype == "Endemic KS" ~ "Endemic KS - Tumor", 
+    tissue_type == "Tumor" & phenotype == "Epidemic KS" ~ "Epidemic KS - Tumor", 
+    tissue_type == "NAT" & phenotype == "Epidemic KS" ~ "Epidemic KS - NAT", 
+    tissue_type == "NAT" & phenotype == "Endemic KS" ~ "Endemic KS - NAT"),
+    cohort.x = factor(cohort.x, levels = c("Lidenge et al.", "Tso et al.", "Non sun-exposed skin", "Sun-exposed skin")),
+    phenotype = factor(phenotype)) |>
+    ggscatter(x = "Macrophages M2", y = "T cells CD8", color = "phenotype", 
+        facet.by = "cohort.x", nrow = 1,
+    add = "reg.line")  + 
+    stat_cor(aes(color = phenotype), p.accuracy = 0.001, r.accuracy = 0.01, size = 6) +
+    theme_classic(base_size = 20) + 
+    labs(y = "T cells CD8 (%)", x = "Macrophages M2 (%)", color = "Tissue type") +
+    ylim(0,50) +
+    scale_color_manual(values = supp_cohort_palatte) +
+    scale_fill_manual(values = supp_cohort_palatte) +
+    theme(strip.text.x = element_text(face="bold"),
+      axis.title = element_text(face = "bold"),
+      legend.position = "right")
+```
+
+```{r}
+ 
+supplementary_figure_two <- supplementary_figure_two_heatmap / supplementary_figure_two_corrplot
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_two.pdf", sep = "/"), supplementary_figure_two, 
+  limitsize = FALSE, width = 30, height = 14, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_two.svg", sep = "/"), supplementary_figure_two,
+  limitsize = FALSE, width = 30, height = 14, device = "svg")
+ggsave(str_c(figures_path, "png", "Supplementary_figure_two.png", sep = "/"), supplementary_figure_two,
+  limitsize = FALSE, width = 30, height = 14, device = "png")
+```
+
+### Supplementary figure 3:
+
+```{r}
+nanostring_matrix <- read_excel(targerted_expression_path, sheet=1) |>
+  pivot_longer(cols = c(-`Probe Name`, -Function), names_to = "sample", values_to = "counts")
+nanostring_meta <- read_excel(targerted_expression_path, sheet=2) |>
+  pivot_longer(cols = `001-B`:His9DP, names_to = "sample", values_to = "tissue_type") |> 
+  dplyr::select(sample, tissue_type) |> 
+  distinct()
+
+nanostring_matrix <- left_join(nanostring_matrix, nanostring_meta, by = "sample")
+my_breaks <- c(0, 0.01, 0.1, 1, 10, 100, 1000, 10000)
+nanostring_matrix
+```
+
+```{r}
+nanostring_plot <- nanostring_matrix |> 
+  dplyr::filter(!is.na(tissue_type) & sample != "KS + HC") |>
+  mutate(tissue_type = case_when(str_detect(sample, "A$") ~ "NAT",
+        str_detect(sample, "^His") ~ "Histology",
+        TRUE ~ "Tumor"),
+    Function = case_when(Function == "Tumor proliferation" ~ "Proliferation",
+      Function == "T-cell proliferation" ~ "T-cell",
+      Function == "Tumor inhibition" ~ "M1 Macrophage",
+      TRUE ~ Function),
+    Function = factor(Function, levels = c("T-cell", "CD4 T-cell", "CD8 T-cell", 
+      "T-reg", "T-cell inhibition", "NK cell", 
+      "Macrophage", "M1 Macrophage", "M2 Macrophage", 
+      "Proliferation"))) |>
+  filter(tissue_type != "Histology") |>
+  ggplot(aes(x = sample, y = `Probe Name`, fill = counts)) +
+  geom_tile(aes(width=0.9, height=0.9), color = "black", linewidth=0.1) +
+  labs(x = "Samples", y = "Probe", fill = "Counts") +
+  scale_fill_viridis_c(breaks = my_breaks, labels = my_breaks, 
+                       trans = scales::pseudo_log_trans(sigma = 0.001)) +
+  theme_classic(base_size = 26) +
+  facet_grid(cols = vars(tissue_type), rows = vars(Function), scales = "free", space = "free", margins = F) +
+  theme(axis.text.x = element_blank(),  axis.title.x = element_blank(),
+    axis.line.y = element_blank(), axis.title.y = element_blank(), 
+    axis.text.y = element_text(face = "bold"),
+    strip.placement = "inside", axis.ticks.y = element_blank(),
+    strip.text.y = element_blank(), strip.text.x = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.key.size = unit(2, "cm"),
+    text = element_text(family = "NimbusSan")) 
+```
+
+```{r}
+nanostringfc_plot <- nanostring_matrix |> 
+  dplyr::filter(is.na(tissue_type) & sample != "KS + HC") |>
+  mutate(tissue_type = if_else(sample == "KS + HC", "Lesion\nvs\nNormal/HC", "FC"),
+    Function = case_when(Function == "Tumor proliferation" ~ "Proliferation",
+      Function == "T-cell proliferation" ~ "T-cell",
+      Function == "Tumor inhibition" ~ "M1 Macrophage",
+      TRUE ~ Function),
+    Function = factor(Function, levels = c("T-cell", "CD4 T-cell", "CD8 T-cell", 
+      "T-reg", "T-cell inhibition", "NK cell", 
+      "Macrophage", "M1 Macrophage", "M2 Macrophage", 
+      "Proliferation"))) |>
+  ggplot(aes(x = sample, y = `Probe Name`, fill = counts)) +
+  geom_tile(aes(width=0.9, height=0.9), color = "black", linewidth=0.1) +
+  labs(x = "Samples", y = "Probe", fill = "Log2FC") +
+  scale_fill_viridis_b(option = "plasma") +
+  theme_classic(base_size = 26) +
+  facet_grid(cols = vars(tissue_type), rows = vars(Function), scales = "free", space = "free", margins = F) +
+  theme(axis.text.x = element_blank(),  axis.title.x = element_blank(),
+    axis.text.y = element_blank(),  
+    axis.line.y = element_blank(), axis.title.y = element_blank(), 
+    strip.placement = "inside", axis.ticks.y = element_blank(),
+    strip.text.x = element_text(face = "bold"),
+    strip.text.y = element_text(angle = 0, face = "bold"), legend.position = "bottom",
+    text = element_text(family = "NimbusSan")) 
+```
+
+```{r}
+plot_design <- "11111111111111111111111111112"
+supplementary_figure_three <- nanostring_plot + nanostringfc_plot +plot_layout(design = plot_design)
+
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_three.pdf", sep = "/"), supplementary_figure_three, 
+  limitsize = FALSE, width = 25, height = 15, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_three.svg", sep = "/"), supplementary_figure_three,
+  limitsize = FALSE, width = 25, height = 15, device = "svg")
+ggsave(str_c(figures_path, "png", "Supplementary_figure_three.png", sep = "/"), supplementary_figure_three,
+  limitsize = FALSE, width = 25, height = 15, device = "png")
+```
+
+## Section 2: KS TIL repertoires are diverse and poorly correlated with viral loads 
+
+### AIRR-Seq data preparation
+The coming sections will outline the steps taken to analyze the following groups 
+of TCR datasets 
+1. Study entry samples with one NAT and one tumor sample from the Hippos cohort 
+2. Pediatric BL samples from Ghana and Uganda
+
+Only datasets with more than 1000 sequences will be considered for the study
+
+```{r}
+# Load AIRR-Seq data
+trb_paths <- list.files(c(hippos_path, blghana_path, bluganda_path, arks_path), 
+    pattern = "tsv", recursive = TRUE, full.names = TRUE)
+study_raw_table <- readImmunoSeq(trb_paths)
+study_nprod_table <- productiveSeq(study_raw_table, aggregate = "junction")
+study_amino_acid_table <- productiveSeq(study_raw_table, aggregate = "junction_aa")
+```
+
+### Dataset summary
+
+#### Raw repertoire counts
+
+```{r}
+annotated_nprod_table <- study_metadata |>
+  inner_join(study_nprod_table, by = c("trb_repertoire_id" = "repertoire_id"))
+print(str_c("Total number of repertoires", 
+  annotated_nprod_table |> pull(trb_repertoire_id) |> unique() |> length(),
+  sep = " : "))
+print(str_c("Total number of ptids", 
+  annotated_nprod_table |> pull(patient_id) |> unique() |> length(),
+  sep = " : "))
+```
+
+#### Hippos TRB count
+
+```{r}
+annotated_summary <- clonality(annotated_nprod_table)
+```
+
+```{r}
+# Study datasets summary table
+# Displays all modalities of data avaiable from each dataset 
+# Datasets are filtered out if their TRB sequencing contains less than 1000 sequences
+options(repr.matrix.max.rows=10, repr.matrix.max.columns=5)
+study_metadata |> 
+    inner_join(annotated_summary, by = c("repertoire_id" = "repertoire_id")) |>
+    filter(total_sequences >= 1000) |>
+    group_by(cohort, phenotype, tissue_type) |> 
+    summarize(number_patient =  length(unique(patient_id)),
+        number_repertoires = length(unique(repertoire_id)),
+        number_trb_repertoires = length(unique(trb_repertoire_id)),
+        number_rna_libraries = length(unique(na.omit(rna_libraries))),
+        number_nanostring = length(unique(na.omit(nanostring_libraries))))
+```
+
+```{r}
+# Tumors per individual
+
+study_metadata |> 
+    inner_join(annotated_summary, by = c("repertoire_id" = "repertoire_id")) |>
+    filter(total_sequences >= 1000 & tissue_type == "Tumor") |>
+    group_by(patient_id) |>
+    summarize(number_of_repertoires = length(unique(trb_repertoire_id))) |>
+    pull(number_of_repertoires) |>
+    summary()
+```
+
+```{r}
+# Repertoires per study
+options(repr.matrix.max.rows=5)
+study_metadata |> 
+    inner_join(annotated_summary, by = c("repertoire_id" = "repertoire_id")) |>
+    filter(total_sequences >= 1000) |>
+    group_by(cohort, phenotype) |>
+    summarize(number_of_repertoires = length(unique(patient_id))) 
+```
+
+```{r}
+# RNA-Seq samples by HIV status
+study_metadata |> 
+    filter(!is.na(rna_libraries) & cohort == "Hippos") |>
+    group_by(hiv_status) |>
+    summarize(count = length(unique(rna_libraries)))
+```
+
+```{r}
+# Nanostring sample summary 
+study_metadata |> 
+    filter(!is.na(nanostring_libraries) & cohort == "Hippos") |>
+    group_by(tissue_type) |>
+    summarize(count = length(unique(nanostring_libraries)))
+```
+
+```{r}
+study_metadata |> 
+    inner_join(annotated_summary, by = c("repertoire_id" = "repertoire_id")) |>
+    filter(total_sequences >= 1000 ) |>
+    group_by(cohort, phenotype) |> 
+    summarize(number_patient =  length(unique(patient_id)))
+```
+
+#### Get summarized Renyi numbers
+Vegan has a wonderful utility to calculate the Renyi numbers accumulated over 
+100 iterations. Since vegan will sample down to the smallest sample, we will 
+need to see how many of these samlpes have at least 5000 sequences, as well as
+how many of them have 1000 sequences so that we can pick a sample diversity 
+threshold based on depth of sequencing. Using LymphoSeq2 we can get a summary of
+repertoire characteristics for all 656 re
+
+```{r}
+study_metadata |> 
+    inner_join(annotated_summary, by = c("repertoire_id" = "repertoire_id")) |>
+    filter(total_sequences >= 1000 & visit_code == "V01") |>
+    group_by(cohort, phenotype) |> 
+    summarize(number_patient =  length(unique(patient_id)),
+        number_repertoires = length(unique(repertoire_id)))
+```
+
+```{r}
+study_sequenced_fitlered_sample_list <- annotated_summary |> filter(total_sequences > 1000)
+study_annotated_nprod_table <- annotated_nprod_table |>
+  filter(repertoire_id %in% study_sequenced_fitlered_sample_list$repertoire_id)
+study_annotated_nprod_table
+```
+
+##### Sampled Renyi numbers
+Given that the sequencing depth across all the samples vary quite a lot due to
+various factors, we will need to normalize the diversity metrics by depth. One
+way to do this is to iteratively sample all the datasets to the lowest possible
+depth of sequencing and then calculate the Renyi metrics for each iteration. 
+This can be then average to get normalized Renyi metrics for each repertoire
+
+```{r}
+# This function randomly samples 1000 TRB sequences from each repertoire and 
+# iteratively calls the sampledRenyi function based on user input. Finally
+# it calculates the mean Renyi numbers for a sample across all the iterations
+iterativeRenyi <- function(study_table, iterations, min_count = 1000) {
+    uncount_table <- study_table %>% 
+        tidyr::uncount(weights = duplicate_count) 
+    progress_bar <- progress::progress_bar$new(
+        format = "Iteration [:bar] :current/:total (:percent) eta: :eta elapsed: :elapsed",
+        total = iterations, clear = FALSE, width = 100)
+    progress_bar$tick(0)
+    srenyi_table <- purrr::map(1:iterations, 
+                                \(i)sampledRenyi(uncount_table, min_count, progress_bar)) %>%
+        dplyr::bind_rows() %>% 
+        dplyr::group_by(repertoire_id) %>%
+        dplyr::summarise_all(mean)
+    return(srenyi_table)
+}
+# Given an uncounted table of TCR sequences with each sequence in the repertoire
+# represented as a unique row of count 1. This function will first collapse 
+# all rows by junction_aa, calculate the total count and frequency of each
+# unique CDR3 sequence and then use the vegan package to calculate the Renyi 
+# numbers for the sampled repertoire across multiple values of alpha
+sampledRenyi <- function(study_table, min_count, progress) {
+    progress$tick()
+    study_table <- study_table %>% 
+        dplyr::group_by(repertoire_id) |>
+        dplyr::sample_n(min_count) %>%
+        dplyr::select(-duplicate_frequency) %>% 
+        dplyr::group_by(repertoire_id, junction_aa) %>% 
+        dplyr::summarise(duplicate_count = dplyr::n()) %>%
+        dplyr::group_by(repertoire_id) |>
+        dplyr::mutate(duplicate_frequency = duplicate_count/sum(duplicate_count)) %>%
+        dplyr::ungroup() 
+    study_matrix <- study_table |>
+      pivot_wider(id_cols = repertoire_id, names_from = junction_aa,
+        values_from = duplicate_frequency, values_fn = sum, values_fill = 0)
+    rep_names <- study_matrix |>
+      pull(repertoire_id)
+    study_matrix <- study_matrix |>
+      select(-repertoire_id) |>
+      as.matrix()
+    rownames(study_matrix) <- rep_names
+    if (length(rep_names) == 1) {
+      renyi_table <- renyi(study_matrix) |>
+        as_tibble_row() |>
+        mutate(repertoire_id = rownames(study_matrix))
+    } else {
+      renyi_table <- renyi(study_matrix) |>
+        as_tibble() |>
+        mutate(repertoire_id = rownames(study_matrix))
+    }
+    return(renyi_table)
+}
+study_renyi_table <- study_annotated_nprod_table |>
+  iterativeRenyi(100, min_count = 1000)
+```
+
+#### KS TME visit one sample list
+
+Since the evaluation of the TME is primarily looking at the visit one tumor-NAT
+samples. Lets now identify these samples tumor-NAT samples that pass our 
+sequencing filters
+
+```{r}
+ks_visitone <- study_metadata |> 
+  filter(repertoire_id %in% study_sequenced_fitlered_sample_list$repertoire_id &
+    phenotype %in% c("Epidemic KS", "Endemic KS") & 
+    tissue_type %in% c("Tumor", "NAT")) |> 
+  filter(visit_code == "V01") |> 
+  group_by(phenotype, patient_id, tissue_type) |> 
+  summarize(reps =length(unique(repertoire_id))) |> 
+  pivot_wider(id_cols = patient_id, names_from = tissue_type, 
+    values_from = reps) |> 
+  filter(!is.na(NAT) & !is.na(Tumor)) |>
+  mutate(total = sum(NAT, Tumor)) 
+print(str_c("number of PTID with complete visitone data", length(ks_visitone$patient_id),
+  sep = ":"))
+print(str_c("number of repertoires with complete visitone data", sum(ks_visitone$total),
+  sep = ":"))
+print(str_c("number of repertoires with complete visitone data", sum(ks_visitone$total),
+  sep = ":"))
+```
+
+#### Checkpoint 3:
+
+At this point lets create our first checkpoint, we will store all the AIRR-Seq
+data, the metadata and summary metrics in RDA files for ease of access
+
+```{r}
+# Save raw study table, and annotated nucleotide table
+save(study_raw_table, study_annotated_nprod_table, study_amino_acid_table,
+    file = str_c(checkpoint_path, "kstme_paper_raw_tables.rda", sep = "/"))
+# Save Renyi summary metrics, clonality table, and a list of samples that passed
+# the seqeuencing threshold of 1000 total sequences
+save(annotated_summary, study_renyi_table, study_sequenced_fitlered_sample_list, 
+    file = str_c(checkpoint_path, "kstme_paper_tcr_tables.rda", sep = "/"))
+```
+
+```{r}
+load(str_c(checkpoint_path, "kstme_paper_tcr_tables.rda", sep = "/"))
+```
+
+### Figure 2:
+
+```{r}
+# Subset tumor and NAT samples from the Renyi table and merge with metadata
+til_normal_renyi <- study_renyi_table |> 
+    dplyr::rename(trb_repertoire_id = repertoire_id) |>
+    pivot_longer(cols = `0`:`Inf`, names_to = "alpha", 
+        values_to = "renyi_number") |>
+    inner_join(study_metadata, by = "trb_repertoire_id") |>
+    filter(cohort %in% c("Hippos", "BL - Ghana", "BL - Uganda") & 
+        tissue_type %in% c("NAT", "Tumor") & 
+        (visit_code == "V01" | is.na(visit_code)) & !is.na(trb_repertoire_id)) |>
+    mutate(cohort = case_when(
+        cohort == "Hippos"  ~  str_c(phenotype, tissue_type, sep = " - "),
+        cohort != "Hippos" ~ cohort),
+        cohort = factor(cohort,  
+            levels = c("Endemic KS - NAT", "Endemic KS - Tumor",
+                "Epidemic KS - NAT", "Epidemic KS - Tumor", 
+                "BL - Ghana", "BL - Uganda")),
+        alpha = str_replace(alpha, "Inf", "\u221e")) 
+```
+
+```{r}
+# Summary of all ptids and repertoires with tumor and normal data from the three studies
+options(repr.matrix.max.rows=7)
+til_normal_renyi |>
+  group_by(cohort) |>
+  summarize(ptid_count = length(unique(patient_id)),
+    repertoire_count = length(unique(trb_repertoire_id)))
+options(repr.matrix.max.rows=5)
+```
+
+```{r}
+comparisons <- list(c("Endemic KS - Tumor", "Epidemic KS - Tumor"),
+   c("Epidemic KS - NAT", "Epidemic KS - Tumor"), 
+   c("Endemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Uganda"))
+comparisons_clin <- list(c("Endemic KS", "Epidemic KS"))
+cohort_palette <- c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8", "BL - Uganda" = "#a65628",
+  "BL - Ghana" = "#fdb462")
+
+alpha_zero <- til_normal_renyi |>
+  filter(alpha == "0") |>
+  ggboxplot(x = "cohort", y = "renyi_number", color = "cohort") |>
+  ggpar(xlab = FALSE, ylab = "Species richness\n(\u03b1 = 0)", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24),
+    legend = "none", palette = cohort_palette) +
+  rremove("x.text") +
+  stat_compare_means(comparisons = list(c("Endemic KS - Tumor", "Epidemic KS - Tumor"),
+   c("Endemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Uganda")), 
+  hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+alpha_one <- til_normal_renyi |>
+  filter(alpha == "1") |>
+  ggboxplot(x = "cohort", y = "renyi_number", color = "cohort") |>
+  ggpar(xlab = FALSE, ylab = "Shannon entropy\n(\u03b1 = 1)", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24),
+    legend = "none", palette = cohort_palette) + 
+  rremove("x.text") +
+  stat_compare_means(comparisons = list(c("Endemic KS - Tumor", "Epidemic KS - Tumor"),
+   c("Endemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Uganda")), hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+alpha_two <- til_normal_renyi |>
+  filter(alpha == "2") |>
+  ggboxplot(x = "cohort", y = "renyi_number", color = "cohort") |>
+  ggpar(xlab = "Cohort", ylab = "Simpson's diversity\n(\u03b1 = 2)", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24), 
+    legend = "none", palette = cohort_palette, x.text.angle = 45) +
+  stat_compare_means(comparisons = list(c("Endemic KS - Tumor", "Epidemic KS - Tumor"),
+   c("Epidemic KS - NAT", "Epidemic KS - Tumor"), 
+   c("Endemic KS - Tumor", "BL - Ghana"),
+  c("Epidemic KS - Tumor", "BL - Uganda")), 
+  hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+alpha_inf <- til_normal_renyi |>
+  filter(alpha == "\u221e") |>
+  ggboxplot(x = "cohort", y = "renyi_number", color = "cohort") |>
+  ggpar(xlab = "Cohort", ylab = "Berger-Parker index\n(\u03b1 = \u221e)", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24), 
+    legend = "right", palette = cohort_palette, x.text.angle = 45) +
+  stat_compare_means(comparisons = list(
+   c("Epidemic KS - NAT", "Epidemic KS - Tumor"), 
+  c("Epidemic KS - Tumor", "BL - Uganda")), 
+  hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+renyi_plot <- ggline(til_normal_renyi, x = "alpha", y = "renyi_number",
+    color = "cohort", add = "mean_se") |> 
+  ggpar(xlab = "\u03b1", ylab = "Renyi entropy", legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24), 
+    legend = "none", palette = cohort_palette)
+figure_two_layout <- "
+1122
+1122
+3344
+3344
+5555
+5555"
+figure_two <- alpha_zero + alpha_one + alpha_two + 
+  alpha_inf + renyi_plot + 
+  plot_layout(design = figure_two_layout, guides = "collect") +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan'))
+ggsave(str_c(figures_path, "pdf", "Figure_two.pdf", sep = "/"), figure_two, width = 16, 
+    height = 18, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_two.svg", sep = "/"), figure_two, width = 16, 
+    height = 18)
+ggsave(str_c(figures_path, "png", "Figure_two.png", sep = "/"), figure_two, width = 16, 
+    height = 18)
+```
+
+### Supplementary Figure 4:
+
+```{r}
+plot_titer_tables <- study_metadata |>
+  filter(trb_repertoire_id %in% til_normal_renyi$repertoire_id) |>
+  dplyr::select(patient_id, visit_code, hiv_status, ks_status,
+    HIV, CD4_count, KSHV_plasma) |>
+  distinct()
+kshv_titer_plot <- plot_titer_tables |>
+  filter(!is.na(KSHV_plasma)) |>
+  mutate(cohort = if_else(hiv_status == "Positive", "Epidemic KS",
+    "Endemic KS")) |>
+  ggboxplot(x = "cohort", y = "KSHV_plasma", color = "cohort", 
+    add = "jitter") |>
+  ggpar(xlab = FALSE, ylab = "Plasma KSHV titer\n(copies/mL)", 
+    legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24),
+    legend = "none", palette = c("Epidemic KS" = "#e41a1c",
+      "Endemic KS" = "#377eb8")) +
+  stat_compare_means(comparisons = comparisons_clin, hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+cd4_plot <- plot_titer_tables |>
+  filter(!is.na(CD4_count)) |>
+  mutate(cohort = if_else(hiv_status == "Positive", "Epidemic KS",
+    "Endemic KS")) |>
+  ggboxplot(x = "cohort", y = "CD4_count", color = "cohort", 
+    add = "jitter") |>
+  ggpar(xlab = FALSE, ylab = str_c("CD4+ count\n(cells/\u03BC", "L)", sep = ""), 
+    legend.title = "Cohort",
+    ggtheme = theme_classic(base_size = 24),
+    legend = "none", palette = c("Epidemic KS" = "#e41a1c",
+      "Endemic KS" = "#377eb8")) +
+  geom_hline(yintercept = 200, linetype = 2) +
+  stat_compare_means(comparisons = comparisons_clin, hide.ns = TRUE, size = 5, label = "p.signif", show.legend = T)
+supp_figure_four_layout <- "
+1122
+1122"
+supplementary_figure_four <- kshv_titer_plot + cd4_plot +
+  plot_layout(design = supp_figure_four_layout, guides = "collect") +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan'))
+ggsave(str_c(figures_path, "pdf", "Supplementarty_figure_four.pdf", sep = "/"), 
+    supplementary_figure_four, width = 16, 
+    height = 6, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Supplementarty_figure_four.svg", sep = "/"), 
+    supplementary_figure_four, width = 16, 
+    height = 6)
+ggsave(str_c(figures_path, "png", "Supplementarty_figure_four.png", sep = "/"), 
+    supplementary_figure_four, width = 16, 
+    height = 6)
+```
+
+### Supplementary Figure 5:
+
+```{r}
+correlation_data_frame <- study_metadata |>
+    filter(cohort == "Hippos" & tissue_type %in% c("NAT", "Tumor") & visit_code == "V01") |>
+    filter(!is.na(HIV) & !is.na(CD4_count) & !is.na(KSHV_plasma)) |>
+    dplyr::select(patient_id, repertoire_id, HIV, CD4_count, KSHV_plasma, phenotype) |> 
+    inner_join(study_renyi_table, by = "repertoire_id") |>
+    dplyr::select(repertoire_id, HIV:`Inf`, -phenotype)
+corr_row_names <- correlation_data_frame |>
+    pull(repertoire_id)
+correlation_data_frame <- correlation_data_frame |>
+    dplyr::select(-repertoire_id) |>
+    as.data.frame()
+rownames(correlation_data_frame) <- corr_row_names
+colnames(correlation_data_frame) <- c("HIV\nVL", "CD4+\ncount", "KSHV\nPlasma\nVL", "0", "0.25", "0.5", "1", "2", "4", "8", "16", "32", "64", "\u221e")
+
+correlation_data_frame
+```
+
+```{r}
+correlation_matrix <- round(cor(correlation_data_frame), 1)
+correlation_matrix
+```
+
+```{r}
+supplementary_figure_five <- ggcorrplot(correlation_matrix,  outline.col = "white",  lab = TRUE) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 12, face = "bold"), axis.title = element_blank(),
+    legend.key.size = unit(1, "cm"), text = element_text(family = "NimbusSan"))
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_five.pdf", sep = "/"), supplementary_figure_five, 
+  limitsize = FALSE, width = 14, height = 10, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_five.svg", sep = "/"), supplementary_figure_five,
+  limitsize = FALSE, width = 14, height = 10, device = "svg")
+ggsave(str_c(figures_path, "png", "Supplementary_figure_five.png", sep = "/"), supplementary_figure_five,
+  limitsize = FALSE, width = 14, height = 10, device = "png")
+```
+
+### Supplementary analysis 1:
+Calculate the biserial correlation between renyi metrics 
+
+```{r}
+clin_correlation_data_frame <- study_metadata |>
+    filter(cohort == "Hippos" & tissue_type %in% c("NAT", "Tumor") & visit_code == "V01") |>
+    dplyr::select(patient_id, repertoire_id, phenotype, response) |> 
+    inner_join(study_renyi_table, by = "repertoire_id") |>
+    filter(!is.na(response)) |>
+    mutate(response = if_else(response == "CR" | response == "PR", 1, 0)) 
+# Endemic KS
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(`0`), clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(`1`), clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(`2`), clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(`Inf`), clin_correlation_data_frame |> filter(phenotype == "Endemic KS") |> pull(response), use = c("all.obs"), level = 2)
+```
+
+```{r}
+# Epidemic KS
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(`0`), clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(`1`), clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(`2`), clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(response), use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(`Inf`), clin_correlation_data_frame |> filter(phenotype == "Epidemic KS") |> pull(response), use = c("all.obs"), level = 2)
+```
+
+```{r}
+# Epidemic and Endemic KS
+biserial.cor(clin_correlation_data_frame$`0`, clin_correlation_data_frame$response, use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame$`1`, clin_correlation_data_frame$response, use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame$`2`, clin_correlation_data_frame$response, use = c("all.obs"), level = 2)
+biserial.cor(clin_correlation_data_frame$`Inf`, clin_correlation_data_frame$response, use = c("all.obs"), level = 2)
+```
+
+## Section 3: TIL repertoires of KS tumors are largely private to each individual
+
+#### Comparison of seqeunce sharing at a individual TCR level
+
+```{r}
+rep_dict <- study_metadata |>
+  filter(!is.na(trb_repertoire_id)) |>
+  pull(repertoire_id)
+names(rep_dict) <- study_metadata |>
+  filter(!is.na(trb_repertoire_id)) |>
+  pull(trb_repertoire_id)
+ptid_dict <- study_metadata |>
+  filter(!is.na(patient_id)) |>
+  pull(phenotype)
+names(ptid_dict) <- study_metadata |>
+  filter(!is.na(patient_id)) |>
+  pull(patient_id)
+ptid_dict["008_265"] <- "Epidemic KS"
+compairr_table <- read_tsv(comp_path, show_col_types = FALSE) |>
+  dplyr::rename(rep_one = `#`) 
+comp_names <- compairr_table |>
+  pull(rep_one)
+compairr_matrix <- compairr_table |>
+  dplyr::select(-rep_one) |>
+  as.matrix() 
+rownames(compairr_matrix) <- comp_names
+compairr_matrix[lower.tri(compairr_matrix, diag = FALSE)] <- NA 
+compairr_table <- compairr_matrix |>
+  as_tibble(rownames = "rep_one") |>
+  pivot_longer(-rep_one, names_to = "rep_two", values_to = "overlap") |>
+  filter(str_detect(rep_one, "008_\\d+") & str_detect(rep_two, "008_\\d+") & 
+    !is.na(overlap) & 
+    str_extract(rep_one, "[A-Z]+$") %in% c("A","B", "C", "D") &
+    str_extract(rep_two, "[A-Z]+$") %in% c("A","B", "C", "D")) |>
+  mutate(rep_one = rep_dict[rep_one], rep_two = rep_dict[rep_two],
+    sample_group = if_else(str_extract(rep_one, "008_\\d+") ==
+      str_extract(rep_two, "008_\\d+"), "Intra-subject", "Inter-subject"),
+    tumor_group = case_when(
+      str_extract(rep_one, "[A-Z]+$") == "A" &
+        str_extract(rep_two, "[A-Z]+$") == "A" ~ "NAT - NAT",
+      str_extract(rep_one, "[A-Z]+$") == "A" &
+        str_extract(rep_two, "[A-Z]+$") %in% c("B", "C", "D") ~ "NAT - Tumor",
+      str_extract(rep_two, "[A-Z]+$") == "A" &
+        str_extract(rep_one, "[A-Z]+$") %in% c("B", "C", "D") ~ "NAT - Tumor",
+      str_extract(rep_two, "[A-Z]+$") %in% c("B", "C", "D") &
+        str_extract(rep_one, "[A-Z]+$") %in% c("B", "C", "D") ~ "Tumor - Tumor"),
+    ks_group = str_c(ptid_dict[str_extract(rep_one, "008_\\d+")],
+      ptid_dict[str_extract(rep_two, "008_\\d+")], sep = " - "),
+    ks_group = str_replace(ks_group, "Epidemic KS - Endemic KS",
+      "Endemic KS - Epidemic KS")) |>
+  filter(!(sample_group == "Inter-subject" & tumor_group == "NAT - Tumor") &
+    !(rep_one == rep_two))
+
+alluvial_data <- study_annotated_nprod_table |>
+  filter(patient_id %in% c("008_057", "008_061", "008_021", "008_048") & 
+    visit_code == "V01") |>
+  productiveSeq()
+```
+
+### Understanding the prevelance of TCRs with known antigenic specificity
+
+#### Generate database of TCRs with known antigenic specificity
+
+```{r}
+# Create a database of VDJdb and McPAS-TCR sequences
+vdjdb_table <- read_tsv(vdjdb_slim_path, show_col_types = FALSE) |>
+    dplyr::filter(vdjdb.score > 1 & gene == "TRB" & species == "HomoSapiens") |>
+    dplyr::rename(epitope = antigen.epitope, pathology = antigen.species, 
+        mhc_allele = mhc.a, trb_cdr3_aa = cdr3, antigen = antigen.gene) |>
+    dplyr::select(epitope, pathology, antigen, mhc_allele, trb_cdr3_aa) |>
+    separate_rows(mhc_allele, sep = ",") |>
+    mutate(mhc_allele = str_remove(mhc_allele, "HLA-"))
+vdjdb_table
+```
+
+```{r}
+mcpas_table <- read_csv(mcpas_tcr_path, show_col_types = FALSE) |> 
+    mutate(Pathology = case_when(Pathology == "Epstein Barr Virus (EBV)" ~ "EBV",
+            Pathology == "Cytomegalovirus (CMV)" ~ "CMV",
+            Pathology == "COVID-19" ~ "SARS-CoV-2", 
+            Pathology == "Hepatitis C virus (HCV)" ~ "HCV",
+            Pathology == "Human immunodeficiency virus (HIV)" ~ "HIV-1",
+            Pathology == "Human immunodeficiency virus (HIV) related" ~ "HIV-1",
+            Pathology == "Influenza" ~ "InfluenzaA",
+            Pathology == "M.tuberculosis" ~ "M.tuberculosis",
+            Pathology == "Herpes simplex virus 2 (HSV2)" ~ "HSV-2",
+            Pathology == "HTLV-1" ~ "HTLV-1",
+            Pathology == "HTLV-1 (Chronic" ~ "HTLV-1",
+            Pathology == "Human herpes virus 1" ~ "HHV",
+            TRUE ~ "Other")) |> 
+    filter(Species == "Human" & Antigen.identification.method < 3 & !is.na(Epitope.peptide)) |>
+    dplyr::select(CDR3.beta.aa, Pathology, Antigen.protein,
+        Epitope.peptide, MHC) |>
+    dplyr::rename(epitope = Epitope.peptide, pathology = Pathology, 
+        mhc_allele = MHC, trb_cdr3_aa = CDR3.beta.aa, antigen = Antigen.protein) |>
+    separate_rows(mhc_allele, sep = ",") |>
+    mutate(mhc_allele = str_remove(mhc_allele, "HLA-"),
+        mhc_allele = case_when(mhc_allele == "A2" ~ "A*02",
+            mhc_allele == "Cw*16:01" ~ "C*16:01",
+            mhc_allele == "A*011" ~ "A*11",
+            mhc_allele == "A*2:01" ~ "A*02:01",
+            mhc_allele == "B*8" ~ "B*08",
+            mhc_allele == "Cw*16:01" ~ "C*16:01",
+            mhc_allele == "A1" ~ "A*01",
+            mhc_allele == "B7" ~ "B*07",
+            mhc_allele == "DRB1*04-01" ~ "DRB1*04:01",
+            mhc_allele == "A2:01" ~ "A*02:01")) |>
+    filter(!is.na(mhc_allele))
+mcpas_table  
+```
+
+```{r}
+antigen_db <- bind_rows(vdjdb_table, mcpas_table)
+antigen_db
+```
+
+#### Identify all TCRs with known antigenic specificities from KSTME cohort
+
+```{r}
+hla_matched_tcr <- annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos", "ARKS") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    inner_join(antigen_db, by = c("junction_aa" = "trb_cdr3_aa"), 
+        relationship = "many-to-many") |>
+    dplyr::select(patient_id, repertoire_id, junction, junction_aa, epitope, pathology,
+        antigen, mhc_allele, aAllele1:DRB345allele2) |> 
+    pivot_longer(cols = aAllele1:DRB345allele2, names_to = "allele",
+        values_to = "mhc_value") |> 
+    mutate(mhc_allele = str_remove(mhc_allele, "HLA-"),
+        hla_matched = if_else(mhc_allele == mhc_value |
+            mhc_allele == str_extract(mhc_value, "\\w+\\*\\d+:\\d+") |
+            mhc_allele == str_extract(mhc_value, "\\w+\\*\\d+"), TRUE, FALSE)) |>
+    filter(hla_matched) |> 
+    dplyr::select(patient_id:junction_aa, epitope:antigen) |>
+    distinct() |> 
+    group_by(patient_id, repertoire_id, junction, junction_aa) |>
+    summarise(npath = length(unique(pathology)),
+        pathology = str_c(unique(pathology), collapse = ";")) |>
+    ungroup() |>
+    mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) |>
+    dplyr::select(patient_id, repertoire_id, junction, junction_aa, pathology) |>
+    distinct() |>
+    mutate(pathology = recode(pathology, 
+        `HomoSapiens` = "Other", "Homo sapiens" = "Other", 
+        "SelaginellaMoellendorffii" = "Other", "TriticumAestivum" = "Other", 
+        "synthetic" = "Other"))
+hla_matched_tcr
+```
+
+```{r}
+path_annotated_nprod_table <- annotated_nprod_table |> 
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos", "ARKS") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    left_join(hla_matched_tcr, by = c("patient_id", "repertoire_id", "junction",
+        "junction_aa")) |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, pathology, junction_aa, duplicate_frequency) |>
+    mutate(pathology = str_replace_na(pathology, "Unknown"),
+        phenotype = if_else(cohort == "ARKS", "ARKS", phenotype)) |>
+    group_by(cohort, repertoire_id, pathology, phenotype, tissue_type) |>
+    summarize(frequency = sum(duplicate_frequency)) |>
+    ungroup() |>
+    mutate(cohort = if_else(cohort == "Hippos", 
+            str_c(phenotype, tissue_type, sep = " - "), "ARKS"))
+path_annotated_nprod_table 
+```
+
+#### Prepare GLIPH inputs for KSTME datasets
+
+```{r}
+# KSTME GLIPH table
+kstme_gliph_trb_input <- annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    mutate(phenotype = if_else(is.na(phenotype), "Epidemic KS", phenotype)) |>
+    dplyr::select(junction_aa, v_call, j_call, repertoire_id, tissue_type, phenotype,
+        duplicate_count) |>
+    mutate(gliph_id = str_c(repertoire_id,
+            str_c(phenotype, tissue_type, sep = " - "), sep = ":"),
+            cdra = NA_character_) |>
+    dplyr::select(junction_aa, v_call, j_call, cdra, gliph_id, duplicate_count)
+write_tsv(kstme_gliph_trb_input, file = kstme_gliph_input_path, col_names = FALSE)
+kstme_gliph_trb_input 
+```
+
+```{r}
+# KSTME GLIPH HLA table
+kstme_gliph_hla_input <- annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    dplyr::select(repertoire_id, aAllele1:DRB345allele2) |>
+    distinct()
+write_tsv(kstme_gliph_hla_input, file = kstme_gliph_hla_input_path,
+    col_names = FALSE)
+kstme_gliph_hla_input
+```
+
+#### Format GLIPH results and annotate with antigenic specificity
+
+```{r}
+kstme_gliph_cluster_pred_table <- read_csv(kstme_gliph_clusters_path,
+        show_col_types = FALSE) 
+kstme_gliph_hla_pred_table <- read_csv(kstme_gliph_hlapred_path, 
+    show_col_types = FALSE)
+```
+
+```{r}
+kstme_gliph_cluster_pred_table
+```
+
+```{r}
+options(repr.matrix.max.rows=5, repr.matrix.max.columns=5)
+# Total number of GLIPH groups identified from the KSTME dataset
+print(str_c("Total number of GLIPH groups in KSTME datasets",
+    length(unique(kstme_gliph_cluster_pred_table$pattern)), sep = " : "))
+print(str_c("Number of GLIPH groups of length >= 3",
+    kstme_gliph_cluster_pred_table |> 
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        pull(pattern) |>
+        unique() |>
+        length(), sep = " : ")) 
+print(str_c("Number of GLIPH groups of length >= 3, vb_score <= 0.01, unique CDR3s >= 3, and unique PTIDs >= 3",
+    kstme_gliph_cluster_pred_table |> 
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+        mutate(patient_id = str_extract(repertoire_id, "008_\\d+"),
+            pattern = if_else(pattern == "single", TcRb, pattern)) |>
+        group_by(pattern) |>
+        mutate(number_of_unique_cdr = length(unique(TcRb)),
+                number_of_unique_ptid = length(unique(patient_id))) |>
+        filter(vb_score <= 0.01 & number_of_unique_cdr >= 3 &
+                number_of_unique_ptid >= 3) |>
+        pull(pattern) |>
+        unique() |>
+        length(), sep = " : ")) 
+```
+
+```{r}
+kstme_gliph_hla_pred_table
+```
+
+```{r}
+print(str_c("Total number of HLA restrictions predicted by GLIPH", 
+    nrow(kstme_gliph_hla_pred_table), sep = " : "))
+print(str_c("Total number of HLA restrictions for GLIPH gorups of length >= 3",
+    kstme_gliph_hla_pred_table |> 
+        mutate(pattern = str_remove(pattern, "^[lg]")) |>
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        nrow(), sep = " : ")) 
+print(str_c("Total number of significant HLA restrictions for GLIPH gorups of length >= 3",
+    kstme_gliph_hla_pred_table |> 
+        mutate(pattern = str_remove(pattern, "^[lg]")) |>
+        filter(pattern != "single" & nchar(pattern) > 2 & Pvalue <= 0.05) |>
+        nrow(), sep = " : ")) 
+```
+
+```{r}
+# Filter out high confidence GLIPH groups with a pattern length of >2 where, 
+# the pattern has at 3 unique CDR3s associated with it, at least 3 PTIDs 
+# associated with it and with a vb_score <= 0.01
+kstme_hc_gliph_cluster_table <- kstme_gliph_cluster_pred_table |>
+  dplyr::select(pattern, vb_score, hla_score, expansion_score, TcRb, Sample, V, J,
+    Freq) |>
+  separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+  mutate(patient_id = str_extract(repertoire_id, "008_\\d+")) |>
+  group_by(pattern) |>
+  mutate(number_of_unique_cdr = length(unique(TcRb)),
+    number_of_unique_ptid = length(unique(patient_id))) |>
+  ungroup() |>
+  filter(vb_score <= 0.01 & number_of_unique_cdr >= 3 &
+    number_of_unique_ptid >= 3 & pattern != "single" & nchar(pattern) > 2)
+kstme_hc_gliph_cluster_table
+```
+
+```{r}
+# Filter out HLA predictions for high confidence GLIPH groups identified in the
+# previous step
+kstme_hc_gliph_hla_table <- kstme_gliph_hla_pred_table |>
+  dplyr::rename(sig_allele = `'HLA allele with lowest Fisher Score'`) |>
+  mutate(pattern = str_remove(pattern, "^[lg]")) |>
+  filter(pattern %in% kstme_hc_gliph_cluster_table$pattern & Pvalue <= 0.05) |>
+  dplyr::select(pattern, sig_allele, Pvalue)
+kstme_hc_gliph_hla_table
+```
+
+```{r}
+# Merge GLIPH clusters with significant HLA association
+kstme_high_confidence_gliph_groups <- kstme_hc_gliph_cluster_table |>
+  left_join(kstme_hc_gliph_hla_table, by = "pattern",
+    relationship = "many-to-many") 
+kstme_high_confidence_gliph_groups
+```
+
+```{r}
+# Annotate GLIPH groups with antigenic specificity based on the CDR3 sequences
+# they contain
+path_annotated_gliph_clusters <- hla_matched_tcr |>
+  distinct() |>
+  inner_join(kstme_high_confidence_gliph_groups, by = c("repertoire_id", "junction_aa" = "TcRb"),
+    relationship = "many-to-many") |>
+  dplyr::select(repertoire_id, pathology, pattern) |>
+  distinct()
+path_annotated_gliph_clusters
+```
+
+```{r}
+ kstme_ck_gliph_table <- kstme_high_confidence_gliph_groups |>
+  dplyr::select(repertoire_id, pattern, TcRb, V, J) |>
+  left_join(path_annotated_gliph_clusters, by = c("repertoire_id", "pattern"), relationship = "many-to-many") |>
+  distinct() |>
+  filter(is.na(pathology)) |>
+  mutate(pathology = if_else(is.na(pathology), "Clustered\nUnknown", pathology)) |>
+  group_by(TcRb, V, J) |>
+  mutate(npath = length(unique(pathology)),
+    pathology = str_c(unique(pathology), collapse =";")) |>
+  ungroup() |>
+  mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) 
+```
+
+```{r}
+# Annotate GLIPH groups by antigenic specificity of CDR3s goruped within
+kstme_path_annotated_gliph_groups <- kstme_high_confidence_gliph_groups |>
+  dplyr::select(repertoire_id, pattern, TcRb, V, J) |>
+  left_join(path_annotated_gliph_clusters, by = c("repertoire_id", "pattern"), relationship = "many-to-many") |>
+  distinct() |>
+  mutate(pathology = if_else(is.na(pathology), "Clustered\nUnknown", pathology)) |>
+  group_by(TcRb, V, J) |>
+  mutate(npath = length(unique(pathology)),
+    pathology = str_c(unique(pathology), collapse =";")) |>
+  ungroup() |>
+  mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) 
+kstme_path_annotated_gliph_groups |>
+  group_by(pathology) |> 
+  summarize(count = length(unique(TcRb))) 
+```
+
+```{r}
+kstme_gliph_nprod_table <- annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    left_join(kstme_path_annotated_gliph_groups, by = c("repertoire_id", 
+        "junction_aa" = "TcRb", "v_call" = "V",
+        "j_call" = "J"), relationship = "many-to-many") |>
+    distinct() |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, pathology, junction_aa, v_call, j_call, duplicate_frequency) |>
+    mutate(pathology = if_else(is.na(pathology), "Unclustered\nUnknown", pathology),
+        phenotype = if_else(is.na(phenotype) , "Epidemic KS", phenotype)) |>
+    group_by(junction_aa, v_call, j_call ) |>
+    mutate(npath = length(unique(pathology)),
+        pathology = str_c(unique(pathology), collapse =";")) |>
+    ungroup() |>
+    mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) |>
+    distinct()
+kstme_gliph_nprod_table
+```
+
+```{r}
+path_annotated_gliph_nprod_table <- kstme_gliph_nprod_table |>
+    group_by(cohort, repertoire_id, pathology, phenotype, tissue_type) |>
+    summarize(frequency = sum(duplicate_frequency)) |>
+    ungroup() |>
+    mutate(cohort = if_else(cohort == "Hippos", 
+            str_c(phenotype, tissue_type, sep = " - "), "ARKS"))
+path_annotated_gliph_nprod_table
+```
+
+```{r}
+annotated_nprod_table |> 
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos", "ARKS") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    left_join(hla_matched_tcr, by = c("patient_id", "repertoire_id", "junction",
+        "junction_aa")) |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, pathology, junction_aa, duplicate_frequency)|> 
+    filter(pathology %in% c("CMV", "DENV1", "DENV3/4", "EBV", "HCV", "HIV-1",
+       "HSV-2", "InfluenzaA", "M.tuberculosis")) |>
+    arrange(desc(duplicate_frequency)) |> 
+    left_join(antigen_db, by = c("pathology", "junction_aa" = "trb_cdr3_aa")) |>
+    dplyr::select(-mhc_allele) |>
+    distinct() |>
+    write_csv(str_c(table_path, "Top_known_sequences.csv", sep = "/"))
+```
+
+```{r}
+kstme_gliph_nprod_table |> filter(pathology %in% c("CMV", "DENV1", "DENV3/4", "EBV", "HCV", "HIV-1",
+       "HSV-2", "InfluenzaA", "M.tuberculosis")) |>
+    arrange(desc(duplicate_frequency)) |>
+    left_join(antigen_db, by = c("pathology", "junction_aa" = "trb_cdr3_aa")) |>
+    write_csv(str_c(table_path, "Top_gliph_confirmed_known_sequences.csv", sep = "/"))
+```
+
+#### Identify overlapping Clustered unknown GLIPH groups
+
+```{r}
+kstme_gliph_tpack_table <- annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    filter(cohort %in% c("Hippos") & visit_code == "V01" &
+        tissue_type %in% c("NAT", "Tumor")) |>
+    left_join(kstme_path_annotated_gliph_groups, by = c("repertoire_id", 
+        "junction_aa" = "TcRb", "v_call" = "V",
+        "j_call" = "J"), relationship = "many-to-many") |>
+    distinct() |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, pathology, 
+        junction_aa, v_call, j_call, duplicate_count, duplicate_frequency, pattern) |>
+    mutate(pathology = if_else(is.na(pathology), "Unclustered\nUnknown", pathology),
+        phenotype = if_else(is.na(phenotype) , "Epidemic KS", phenotype)) |>
+    group_by(junction_aa, v_call, j_call ) |>
+    mutate(npath = length(unique(pathology)),
+        pathology = str_c(unique(pathology), collapse =";")) |>
+    ungroup() |>
+    mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) |>
+    distinct()
+```
+
+```{r}
+kstme_clustered_unknown_table <- kstme_gliph_tpack_table |>
+    filter(pathology == "Clustered\nUnknown") 
+kstme_clustered_unknown_table
+```
+
+```{r}
+kstme_gliph_pattern_table <- kstme_clustered_unknown_table |>
+    dplyr::select(repertoire_id, pattern) |>
+    filter(!is.na(repertoire_id) & !is.na(pattern)) |>
+    distinct()
+kstme_gliph_pattern_table
+```
+
+```{r}
+kstme_gliph_dist_table <- kstme_gliph_pattern_table |>
+    group_by(repertoire_id) |>
+    summarize(gliph_groups = list(unique(pattern))) |>
+    mutate(gliph_groups = map(gliph_groups, ~sort(as.character(.)))) |>
+    ungroup()
+kstme_gliph_dist_table
+```
+
+```{r}
+kstme_clustered_unknown_table |> pull(pattern) |> unique() |> length()
+```
+
+```{r}
+intra_tumor_sharing_count <- kstme_clustered_unknown_table |>
+    filter(!str_detect(repertoire_id, "008_\\d+_A")) |>
+    group_by(pattern, patient_id) |>
+    summarise(nreps = length(unique(repertoire_id))) |>
+    filter(nreps > 1) |>
+    pull(pattern) |>
+    unique() |>
+    length()
+str_c("Number of specificity groups shared by at least two tumors derieved from spatially distinct sites from the same individual", intra_tumor_sharing_count, sep = " : ")
+```
+
+```{r}
+inter_tumor_sharing_count <- kstme_clustered_unknown_table |>
+    filter(!str_detect(repertoire_id, "008_\\d+_A")) |>
+    group_by(pattern) |>
+    summarise(nptids = length(unique(patient_id))) |>
+    filter(nptids > 1) |>
+    pull(pattern) |>
+    unique() |>
+    length()
+str_c("Number of specificity groups shared by at least two tumors derieved from spatially distinct sites from the different individuals", inter_tumor_sharing_count, sep = " : ")
+```
+
+```{r}
+inter_by_cond_tumor_sharing_count <- kstme_clustered_unknown_table |>
+    filter(!str_detect(repertoire_id, "008_\\d+_A")) |>
+    group_by(pattern,phenotype) |>
+    summarise(nptids = length(unique(patient_id))) |>
+    filter(nptids > 1) |>
+    ungroup() |>
+    group_by(phenotype) |>
+    summarize(ngliphs = length(unique(pattern)))
+inter_by_cond_tumor_sharing_count 
+```
+
+```{r}
+inter_cond_tumor_sharing_count <- kstme_clustered_unknown_table |>
+    filter(!str_detect(repertoire_id, "008_\\d+_A")) |>
+    group_by(pattern) |>
+    summarise(nptids = length(unique(phenotype))) |>
+    filter(nptids > 1) |>
+    pull(pattern) |>
+    unique() |>
+    length()
+str_c("Number of specificity groups shared by at least two tumors derieved from spatially distinct sites from the epidemic and endemic individuals", inter_cond_tumor_sharing_count, sep = " : ")
+```
+
+```{r}
+kstme_gliph_dist_tibble <- expand_grid(kstme_gliph_dist_table, 
+    kstme_gliph_dist_table, .name_repair = "unique") |>
+  dplyr::rename(rep_one = repertoire_id...1,
+    glist_one = gliph_groups...2,
+    rep_two = repertoire_id...3,
+    glist_two = gliph_groups...4) |>
+  rowwise() |>
+  mutate(jaccard = length(intersect(glist_one, glist_two))/length(union(glist_one, glist_two)))  |>
+  dplyr::select(rep_one, rep_two, jaccard) |>
+  filter(str_detect(rep_one, "008_\\d+") & str_detect(rep_two, "008_\\d+") & 
+    !is.na(jaccard) & 
+    str_extract(rep_one, "[A-Z]+$") %in% c("A","B", "C", "D") &
+    str_extract(rep_two, "[A-Z]+$") %in% c("A","B", "C", "D")) |>
+  ungroup() |> 
+  mutate(sample_group = if_else(str_extract(rep_one, "008_\\d+") ==
+      str_extract(rep_two, "008_\\d+"), "Intra-sample", "Inter-sample"),
+    tumor_group = case_when(
+      str_extract(rep_one, "[A-Z]+$") == "A" &
+        str_extract(rep_two, "[A-Z]+$") == "A" ~ "NAT - NAT",
+      str_extract(rep_one, "[A-Z]+$") == "A" &
+        str_extract(rep_two, "[A-Z]+$") %in% c("B", "C", "D") ~ "NAT - Tumor",
+      str_extract(rep_two, "[A-Z]+$") == "A" &
+        str_extract(rep_one, "[A-Z]+$") %in% c("B", "C", "D") ~ "NAT - Tumor",
+      str_extract(rep_two, "[A-Z]+$") %in% c("B", "C", "D") &
+        str_extract(rep_one, "[A-Z]+$") %in% c("B", "C", "D") ~ "Tumor - Tumor"),
+    ks_group = str_c(ptid_dict[str_extract(rep_one, "008_\\d+")],
+      ptid_dict[str_extract(rep_two, "008_\\d+")], sep = " - "),
+    ks_group = str_replace(ks_group, "Epidemic KS - Endemic KS",
+      "Endemic KS - Epidemic KS")) |>
+  filter(!(sample_group == "Inter-sample" & tumor_group == "NAT - Tumor") &
+    !(rep_one == rep_two))
+kstme_gliph_dist_tibble
+```
+
+### Figure 3:
+
+```{r}
+### Overlapping TCRs section
+endemic_pal <- alluvial_data |>
+  filter(str_detect(repertoire_id,  "008_057|008_061")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |> 
+  group_by(junction_aa) |>
+  summarize(reps = str_c(unique(str_extract(repertoire_id, "[ABCD]$")), collapse= ""),
+    samples = length(unique(str_extract(repertoire_id, "\\d+_\\d+"))),
+    seen = max(seen)) |>
+  mutate(pal = case_when(seen == 1 ~ "#f0f0f0",
+    samples > 1 & reps != "A" ~ "#e7298a",
+    samples > 1 & reps == "A" ~ "#1b9e77",
+    samples == 1 & seen > 1 & str_detect(reps, "A") & 
+      str_detect(reps, "B|C|D") ~ "#d95f02",
+    samples == 1 & seen > 1 & !str_detect(reps, "A") ~ "#7570b3"))
+endemic_alluvial <- alluvial_data |>
+  filter(str_detect(repertoire_id, "008_057|008_061")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |>
+  plotTrack(alist = endemic_pal$junction_aa, apal = endemic_pal$pal) +
+  scale_x_discrete(limits = c("008_061_A", "008_061_B", "008_061_C", "008_061_D",
+    "008_057_D", "008_057_C", "008_057_B", "008_057_A"),
+    labels = c("NAT", "Tumor B", "Tumor C", "Tumor D", "Tumor D", "Tumor C",
+      "Tumor B", "NAT")) +
+  annotate("text", label = "Endemic KS\nStudy Entry", y = 0.95, size = 12, x = 2.5) +
+  annotate("text", label = "Endemic KS\nStudy Entry", y = 0.95, size = 12, x = 6.5) +
+  geom_vline(xintercept = 4.5, linetype="dotted") + 
+  ylim(0,1) +
+  theme_classic(base_size = 30) +
+  theme(legend.position = "none")
+
+
+epidemic_pal <- alluvial_data |>
+  filter(str_detect(repertoire_id, "008_021|008_048")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |> 
+  group_by(junction_aa) |>
+  summarize(reps = str_c(unique(str_extract(repertoire_id, "[ABCD]$")), collapse= ""),
+    samples = length(unique(str_extract(repertoire_id, "\\d+_\\d+"))),
+    seen = max(seen)) |>
+  mutate(pal = case_when(seen == 1 ~ "#f0f0f0",
+    samples > 1 & reps != "A" ~ "#e7298a",
+    samples > 1 & reps == "A" ~ "#1b9e77",
+    samples == 1 & seen > 1 & str_detect(reps, "A") & 
+      str_detect(reps, "B|C|D") ~ "#d95f02",
+    samples == 1 & seen > 1 & !str_detect(reps, "A") ~ "#7570b3"))
+
+epidemic_alluvial <- alluvial_data |>
+  filter(str_detect(repertoire_id, "008_021|008_048")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |>
+  plotTrack(alist = epidemic_pal$junction_aa, apal = epidemic_pal$pal) +
+  scale_x_discrete(limits = c("008_021_A", "008_021_B", "008_021_C", "008_021_D",
+    "008_048_D", "008_048_C", "008_048_B", "008_048_A"),
+    labels = c("NAT", "Tumor B", "Tumor C", "Tumor D", "Tumor D", "Tumor C",
+      "Tumor B", "NAT")) +
+  geom_vline(xintercept = 4.5, linetype="dotted") + 
+  annotate("text", label = "Epidemic KS\nStudy Entry", y = 0.95, size = 12, x = 2.5) +
+  annotate("text", label = "Epidemic KS\nStudy Entry", y = 0.95, size = 12, x = 6.5) +
+  ylim(0,1) +
+  theme_classic(base_size = 30) +
+  theme(legend.position = "none")
+
+endepi_pal <- alluvial_data |>
+  filter(str_detect(repertoire_id,  "008_021|008_057")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |> 
+  group_by(junction_aa) |>
+  summarize(reps = str_c(unique(str_extract(repertoire_id, "[ABCD]$")), collapse= ""),
+    samples = length(unique(str_extract(repertoire_id, "\\d+_\\d+"))),
+    seen = max(seen)) |>
+  mutate(pal = case_when(seen == 1 ~ "#f0f0f0",
+    samples > 1 & reps != "A" ~ "#e7298a",
+    samples > 1 & reps == "A" ~ "#1b9e77",
+    samples == 1 & seen > 1 & str_detect(reps, "A") & 
+      str_detect(reps, "B|C|D") ~ "#d95f02",
+    samples == 1 & seen > 1 & !str_detect(reps, "A") ~ "#7570b3"))
+endepi_alluvial <- alluvial_data |>
+  filter(str_detect(repertoire_id, "008_021|008_057")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |>
+  plotTrack(alist = endepi_pal$junction_aa, apal = endepi_pal$pal) +
+  scale_x_discrete(limits = c("008_021_A", "008_021_B", "008_021_C", "008_021_D",
+    "008_057_D", "008_057_C", "008_057_B", "008_057_A"),
+    labels = c("NAT", "Tumor B", "Tumor C", "Tumor D", "Tumor D", "Tumor C",
+      "Tumor B", "NAT")) +
+  geom_vline(xintercept = 4.5, linetype="dotted") + 
+  annotate("text", label = "Epidemic KS\nStudy Entry", y = 0.95, size = 12, x = 2.5) +
+  annotate("text", label = "Endemic KS\nStudy Entry", y = 0.95, size = 12, x = 6.5) +
+  ylim(0,1) +
+  theme_classic(base_size = 30) +
+  theme(legend.position = "none")
+
+endemic_compairr <- compairr_table |>
+  mutate(color_group = str_c(sample_group, tumor_group, sep = "\n"),
+    overlap = if_else(overlap > 1, 1, overlap)) |>
+  filter(ks_group == "Endemic KS - Endemic KS") |>
+  ggboxplot(x = "color_group", y = "overlap", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Morisita-Horn index", 
+    ggtheme = theme_classic(base_size = 30), legend = "none",
+    legend.title = "Group", palette = c("Inter-subject\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a")) +
+  stat_compare_means(comparisons = list(c("Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor")), size = 6,  label = "p.signif") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.25)))
+
+epidemic_compairr <- compairr_table |>
+  mutate(color_group = str_c(sample_group, tumor_group, sep = "\n"),
+    overlap = if_else(overlap > 1, 1, overlap)) |>
+  filter(ks_group == "Epidemic KS - Epidemic KS") |>
+  ggboxplot(x = "color_group", y = "overlap", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Morisita-Horn index", 
+    ggtheme = theme_classic(base_size = 30), legend = "right",
+    legend.title = "Group", palette = c("Inter-subject\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a")) +
+  stat_compare_means(comparisons = list(c("Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor")), size = 6,  label = "p.signif") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.25)))
+
+endemic_epidemic_compairr <- compairr_table |>
+  mutate(color_group = str_c(sample_group, tumor_group, sep = "\n"),
+    overlap = if_else(overlap > 1, 1, overlap)) |>
+  filter(ks_group == "Endemic KS - Epidemic KS") |>
+  ggboxplot(x = "color_group", y = "overlap", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Morisita-Horn index", ylim = c(0,1),
+    ggtheme = theme_classic(base_size = 30),
+    legend = "none", palette = c("Inter-subject\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a"), size = 6, label = "p.signif")
+### Public TCRs section
+public_tcrs_plot <- path_annotated_nprod_table |>
+  mutate(frequency = frequency * 100) |>
+  filter(cohort != "ARKS") |>
+  ggboxplot(x = "pathology", y = "frequency", color = "cohort", 
+    add = "jitter", order = c("CMV", "DENV1", "DENV3/4", "EBV", "HCV", "HIV-1",
+       "HSV-2",
+      "InfluenzaA", "M.tuberculosis", "SARS-CoV-2", "Other", "Multi-pathogen",
+      "Unknown")) |>
+  ggpar(xlab = FALSE, ylab = "Cummulative frequency", 
+    legend.title = "Cohort", 
+    format.scale = T, legend = "right",
+    ggtheme = theme_classic(base_size = 30),
+    palette = c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8")) +
+  geom_hline(yintercept = 1, linetype = 2) + 
+  geom_hline(yintercept = 25, linetype = 2) + 
+  geom_hline(yintercept = 75, linetype = 2) + 
+  geom_hline(yintercept = 90, linetype = 2) + 
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks(sides = "l", short = unit(2,"mm"),
+    mid = unit(4,"mm"),long = unit(8,"mm"), size = 1) +
+  theme_classic(base_size = 30) +
+  theme(axis.text = element_text(face = "bold"),
+    axis.title.x = element_blank())
+
+public_gliph_plot <- path_annotated_gliph_nprod_table |>
+  mutate(frequency = frequency * 100) |>
+  ggboxplot(x = "pathology", y = "frequency", color = "cohort", 
+    add = "jitter", order = c("CMV", "EBV", "HCV", "HIV-1",
+       "HSV-2", "InfluenzaA", "M.tuberculosis", "SARS-CoV-2", "Other", 
+       "Multi-pathogen",   "Clustered\nUnknown", "Unclustered\nUnknown")) |>
+  ggpar(xlab = FALSE, ylab = "Cummulative frequency", 
+    legend.title = "Cohort", 
+    format.scale = T, legend = "right",
+    ggtheme = theme_classic(base_size = 30),
+    palette = c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8")) +
+  geom_hline(yintercept = 1, linetype = 2) +
+  geom_hline(yintercept = 25, linetype = 2) +
+  geom_hline(yintercept = 75, linetype = 2) +  
+  geom_hline(yintercept = 90, linetype = 2) +  
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks(sides = "l", short = unit(2,"mm"),
+    mid = unit(4,"mm"),long = unit(8,"mm"), size = 1) + 
+  theme_classic(base_size = 30) +
+  theme(axis.text = element_text(face = "bold"),
+    axis.title.x = element_blank())
+
+### Overlapping clustered unknown section
+endemic_gliph_compairr <- kstme_gliph_dist_tibble |>
+  mutate(color_group = str_c(str_replace(sample_group, "sample", "subject"), tumor_group, sep = "\n"),
+    jaccard = if_else(jaccard > 1, 1, jaccard)) |>
+  filter(ks_group == "Endemic KS - Endemic KS") |>
+  ggboxplot(x = "color_group", y = "jaccard", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Jaccard index",  #title = "Endemic KS - Endemic KS",
+    ggtheme = theme_classic(base_size = 30), legend = "none",
+    legend.title = "Group", palette = c("Inter-subject\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a"),
+    ylim = c(0,1)) +  stat_compare_means(comparisons = list(c("Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor")), size = 6)
+
+epidemic_gliph_compairr <- kstme_gliph_dist_tibble |>
+  mutate(color_group = str_c(str_replace(sample_group, "sample", "subject"), tumor_group, sep = "\n"),
+    jaccard = if_else(jaccard > 1, 1, jaccard)) |>
+  filter(ks_group == "Epidemic KS - Epidemic KS") |>
+  ggboxplot(x = "color_group", y = "jaccard", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Jaccard index",  #title = "Epidemic KS - Epidemic KS",
+    ggtheme = theme_classic(base_size = 30), legend = "right",
+    legend.title = "Group", palette = c("Inter-subject\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a"),
+    ylim = c(0,1)) +
+  stat_compare_means(comparisons = list(c("Intra-subject\nNAT - Tumor",
+      "Intra-subject\nTumor - Tumor")), size = 6) 
+
+endemic_epidemic_gliph_compairr <- kstme_gliph_dist_tibble |>
+  mutate(color_group = str_c(str_replace(sample_group, "sample", "subject"), tumor_group, sep = "\n"),
+    jaccard = if_else(jaccard > 1, 1, jaccard)) |>
+  filter(ks_group == "Endemic KS - Epidemic KS") |>
+  ggboxplot(x = "color_group", y = "jaccard", fill = "color_group",
+    order = c("Inter-subject\nNAT - NAT", "Inter-subject\nTumor - Tumor")) |>
+  ggpar(xlab = FALSE, ylab = "Jaccard index", ylim = c(0,1),
+    ggtheme = theme_classic(base_size = 30), #title = "Endemic KS - Epidemic KS",
+    legend = "none", palette = c("Inter-sample\nNAT - NAT" = "#1b9e77", 
+      "Intra-subject\nNAT - Tumor" = "#d95f02",
+      "Intra-subject\nTumor - Tumor" = "#7570b3", 
+      "Inter-subject\nTumor - Tumor" = "#e7298a")) +
+  stat_compare_means(comparisons = list(c("Intet-subject\nNAT - NAT",
+      "Intra-subject\nTumor - Tumor")), size = 6) 
+
+
+figure_three_layout <- "
+AAAABBBBCCCC
+AAAABBBBCCCC
+AAAABBBBCCCC
+DDDDEEEEFFFF
+DDDDEEEEFFFF
+GGGGGGGGGGGG
+GGGGGGGGGGGG
+HHHHHHHHHHHH
+HHHHHHHHHHHH
+IIIIJJJJKKKK
+IIIIJJJJKKKK
+"
+
+figure_three <- endemic_alluvial + 
+  epidemic_alluvial + 
+  endepi_alluvial +
+  endemic_compairr +
+  epidemic_compairr +
+  endemic_epidemic_compairr + 
+  public_tcrs_plot + 
+  public_gliph_plot +
+  endemic_gliph_compairr +
+  epidemic_gliph_compairr +
+  endemic_epidemic_gliph_compairr + 
+  plot_layout(design = figure_three_layout, guides = "collect") +
+  plot_annotation(tag_levels = "A") 
+
+ggsave(str_c(figures_path, "pdf", "Figure_three.pdf", sep = "/"), figure_three, 
+  width = 48, height = 42, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_three.svg", sep = "/"), figure_three, 
+  width = 48, height = 42)
+ggsave(str_c(figures_path, "png", "Figure_three.png", sep = "/"), figure_three, 
+  width = 48, height = 42)
+```
+
+### Supplementary figure 6:
+
+```{r}
+# Prep the BL datasets for GLIPH
+bl_gliph_trb_input_table <- study_annotated_nprod_table |> 
+    filter(cohort %in% c("BL - Ghana", "BL - Uganda")) |>
+    dplyr::select(cohort, repertoire_id, junction_aa, v_call, j_call, duplicate_count) |>
+    mutate(gliph_id = str_c(repertoire_id, "BL", sep = ":"),
+        cdra = NA_character_) |>
+    dplyr::select(junction_aa, v_call, j_call, cdra, gliph_id, duplicate_count) |>
+    write_tsv(bl_gliph_trb_input_path, col_names = FALSE)
+```
+
+```{r}
+bl_ebv_groups <- read_csv(bl_gliph_clusters_path, show_col_types = FALSE) |>
+    dplyr::select(pattern, vb_score, hla_score, expansion_score, TcRb, Sample, V, J,
+    Freq) |>
+    separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+    mutate(patient_id = repertoire_id) |>
+    group_by(pattern) |>
+    mutate(number_of_unique_cdr = length(unique(TcRb)),
+        number_of_unique_ptid = length(unique(patient_id))) |>
+    ungroup() |>
+    filter(vb_score <= 0.01 & number_of_unique_cdr >= 3 &
+        number_of_unique_ptid >= 3 & pattern != "single" & nchar(pattern) > 2) |>
+    left_join(antigen_db, by = c("TcRb" = "trb_cdr3_aa"), relationship = "many-to-many") |>
+    filter(pathology == "EBV")
+    
+bl_gliph_cluster_table <- read_csv(bl_gliph_clusters_path, show_col_types = FALSE) |>
+    dplyr::select(pattern, vb_score, hla_score, expansion_score, TcRb, Sample, V, J,
+    Freq) |>
+    separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+    mutate(patient_id = repertoire_id) |>
+    filter(pattern %in% bl_ebv_groups$pattern)
+
+bl_gliph_cluster_table
+```
+
+```{r}
+bl_nprod_table <- study_annotated_nprod_table |>
+    filter(cohort %in% c("BL - Ghana", "BL - Uganda")) |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, junction_aa, v_call, j_call, duplicate_count, duplicate_frequency) |>
+    mutate(phenotype = cohort)
+bl_nprod_table
+```
+
+```{r}
+kstme_clustered_unknown_summary_table <- study_annotated_nprod_table |>
+    filter(cohort == "Hippos" & junction_aa %in% kstme_clustered_unknown_table$junction_aa) |>
+    clonality()
+kstme_clustered_unknown_summary_table
+```
+
+```{r}
+kstme_clustered_unknown_summary_table
+```
+
+```{r}
+    
+supplementary_figure_six <- kstme_gliph_tpack_table |>
+    filter(pathology == "Clustered\nUnknown") |>
+    mutate(duplicate_frequency = duplicate_frequency * 100,
+        group = if_else(str_detect(repertoire_id, "008_\\d+"), 
+          str_c(phenotype, tissue_type, sep = " - "), phenotype),
+        group = factor(group, levels = c("Epidemic KS - NAT", 
+          "Epidemic KS - Tumor", "Endemic KS - NAT",
+          "Endemic KS - Tumor", "BL- Ghana", "BL - Uganda"))) |>
+    ggboxplot(x = "group", y = "duplicate_frequency", color = "group") |>
+    ggpar(xlab = FALSE, ylab = "Cummulative frequency", 
+    legend.title = "Cohort", 
+    format.scale = T, legend = "right",
+    ggtheme = theme_classic(base_size = 32),
+    palette = c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8")) +
+  geom_hline(yintercept = 1, linetype = 2) +
+  geom_hline(yintercept = 10, linetype = 2) +
+  geom_hline(yintercept = 75, linetype = 2) +  
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks(sides = "l", short = unit(2,"mm"),
+    mid = unit(4,"mm"),long = unit(8,"mm"), size = 1) +
+  theme(axis.text =  element_text(face = "bold"))
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_six.pdf", sep = "/"), supplementary_figure_six, 
+  width = 24, height = 10)
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_six.svg", sep = "/"), supplementary_figure_six, 
+  width = 24, height = 10)
+ggsave(str_c(figures_path, "png", "Supplementary_figure_six.png", sep = "/"), supplementary_figure_six, 
+  width = 24, height = 10)
+```
+
+### Supplementary figure 7:
+
+```{r}
+endemic_upset_input_table <- alluvial_data |>
+  filter(str_detect(repertoire_id,  "008_057|008_061"))
+endemic_upset_input_table
+```
+
+```{r}
+# Define your list
+my_list <- c("008_061_B", "008_061_C", "008_061_D", "008_057_B", "008_057_C", "008_057_D")
+
+# Function to generate all subsets
+all_subsets <- function(lst) {
+  all_combinations <- list()
+  for (i in 1:length(lst)) {
+    all_combinations <- c(all_combinations, combn(lst, i, simplify = FALSE))
+  }
+  return(all_combinations)
+}
+
+# Get all subsets
+subsets <- all_subsets(my_list)
+
+formatter_list <- c()
+# Print the formatted subsets
+for (formatted_subset in subsets) {
+  #print(str_c("upset_query(intersect = c(", str_c("'", formatted_subset, "'", collapse = ","), ") color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')", sep = ""))
+  formatter_list <- c(str_c("upset_query(intersect = c(", str_c("'", formatted_subset, "'", collapse = ","), ") color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),", sep = ""), formatter_list)
+}
+collapsed_string <- paste(formatter_list, collapse = "\n")
+cat(collapsed_string, '\n')
+```
+
+```{r}
+# UpSetR plots for endemic KS comparisons
+
+endemic_upset_input_tibble <- alluvial_data |>
+    filter(str_detect(repertoire_id,  "008_057|008_061"))  |>
+    left_join(study_metadata, by = "repertoire_id") |>
+    dplyr::select(repertoire_id, junction_aa, tissue_type, phenotype) |>
+    mutate(present = 1,
+        row_id = str_c(repertoire_id, tissue_type, phenotype, sep = " ")) |>
+    pivot_wider(id_cols = junction_aa, names_from = repertoire_id, values_from = present, values_fill = 0) |>
+    dplyr::select(junction_aa, "008_057_A", "008_057_B", "008_057_C", "008_057_D", "008_061_D",
+        "008_061_C", "008_061_B", "008_061_A")
+
+endemic_upset_rownames <- endemic_upset_input_tibble |>
+    pull(junction_aa)
+endemic_upset_input_table <- endemic_upset_input_tibble |>
+    dplyr::select(-junction_aa) |>
+    as.data.frame() 
+rownames(endemic_upset_input_table) <- endemic_upset_rownames
+
+endemic_upset <- upset(endemic_upset_input_table, 
+    intersect = c("008_057_A", "008_057_B", "008_057_C", "008_057_D", "008_061_D", "008_061_C", "008_061_B", "008_061_A"),
+    queries = list(
+    upset_query(set = '008_061_A', fill = '#80b1d3'),
+    upset_query(set = '008_061_B', fill = '#377eb8'),
+    upset_query(set = '008_061_C', fill = '#377eb8'),
+    upset_query(set = '008_061_D', fill = '#377eb8'),
+    upset_query(set = '008_057_A', fill = '#80b1d3'),
+    upset_query(set = '008_057_B', fill = '#377eb8'),
+    upset_query(set = '008_057_C', fill = '#377eb8'),
+    upset_query(set = '008_057_D', fill = '#377eb8'),
+    upset_query(intersect = c('008_061_A'), color = '#80b1d3', fill = '#80b1d3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A'), color = '#80b1d3', fill = '#80b1d3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_B'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_C'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_D'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_B','008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_B','008_057_C', '008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),    
+    upset_query(intersect = c('008_061_B','008_061_C', '008_061_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),    
+    upset_query(intersect = c('008_057_B','008_057_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_C','008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_061_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_B', '008_057_C', '008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B', '008_061_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B', '008_061_C', '008_061_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_B'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_B', '008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_C', '008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B', '008_061_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_057_A','008_057_B', '008_057_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_C', '008_061_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_D', '008_057_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_D'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C', '008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C', '008_061_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_B'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_D','008_057_C','008_057_B'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_D', '008_057_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C', '008_061_D', '008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_061_D', '008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),    
+    upset_query(intersect = c('008_057_C','008_061_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_D','008_057_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_061_D', '008_057_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_D', '008_057_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_057_D', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_061_D', '008_057_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_B', '008_061_D', '008_057_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_D', '008_057_C', '008_057_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_061_D','008_057_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_A'), color = '#1b9e77', fill = '#1b9e77', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_057_D','008_057_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_B','008_061_C','008_061_D', '008_057_C', '008_057_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_B','008_057_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_B','008_057_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_D','008_057_B','008_057_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_D','008_057_D','008_057_C','008_057_B','008_057_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_C','008_057_D','008_057_C','008_057_B','008_057_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+    upset_query(intersect = c('008_061_A','008_057_D','008_057_C','008_057_B','008_057_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size'))),
+    intersections = list('008_061_B', '008_057_B','008_057_D', '008_061_D',
+        '008_057_C', '008_061_A', '008_061_C', '008_057_A', 
+        c('008_061_B','008_061_D'),
+        c('008_061_B','008_061_C','008_061_D'),
+        c('008_061_B','008_061_C'),
+        c('008_061_D','008_061_C'),
+        c('008_057_D','008_057_B'),
+        c('008_057_D','008_057_C','008_057_B'), 
+        c('008_057_C','008_057_B'),
+        c('008_057_D','008_057_C'),
+        c('008_061_A','008_061_B','008_061_D'),
+        c('008_061_A','008_061_B'),
+        c('008_061_A','008_061_B','008_061_C','008_061_D'),
+        c('008_061_A','008_061_D'),
+        c('008_061_A','008_061_B','008_061_C'),
+        c('008_061_A','008_061_C'),
+        c('008_061_A','008_061_C','008_061_D'),
+        c('008_057_D','008_057_C','008_057_B','008_057_A'),
+        c('008_057_D','008_057_A'),
+        c('008_057_B','008_057_A'),
+        c('008_057_D','008_057_B','008_057_A'),
+        c('008_057_C','008_057_A'),
+        c('008_057_D','008_057_C','008_057_A'),
+        c('008_057_C','008_057_B','008_057_A'),
+        c('008_057_B','008_061_B'),
+        c('008_057_D','008_061_D'),
+        c('008_061_B','008_057_C'),
+        c('008_061_B','008_057_D'),
+        c('008_061_D','008_057_B'),
+        c('008_061_B','008_057_D','008_057_C','008_057_B'),
+        c('008_061_D','008_057_C'),
+        c('008_061_D','008_057_D','008_057_B'),
+        c('008_061_B','008_057_D','008_057_B'),
+        c('008_061_B','008_061_C','008_057_B'),
+        c('008_061_B','008_061_C','008_057_C'),
+        c('008_061_C','008_057_C'),
+        c('008_061_B','008_061_C','008_061_D','008_057_B'),
+        c('008_061_B','008_061_D','008_057_B'),
+        c('008_061_C','008_057_B'),
+        c('008_061_B','008_061_D','008_057_D'),
+        c('008_061_B','008_061_C','008_061_D','008_057_C'),
+        c('008_061_C','008_061_D','008_057_C'),
+        c('008_061_B','008_057_D','008_057_C'),
+        c('008_061_A','008_061_B','008_057_B'),
+        c('008_061_C','008_061_D','008_057_D','008_057_B'),
+        c('008_061_A','008_061_D','008_057_D','008_057_B'),
+        c('008_061_C','008_057_D','008_057_B'),
+        c('008_061_C','008_061_D','008_057_C','008_057_B'),
+        c('008_061_A','008_061_B','008_061_D','008_057_C','008_057_B'),
+        c('008_061_B','008_057_C','008_057_B'),
+        c('008_061_D','008_057_D','008_057_C','008_057_B'),
+        c('008_061_B','008_057_D','008_057_A'),
+        c('008_061_B','008_061_C','008_061_D','008_057_C','008_057_A'),
+        c('008_061_D','008_057_B','008_057_A'),
+        c('008_061_D','008_057_D','008_057_C','008_057_B','008_057_A'),
+        c('008_061_C','008_057_D','008_057_C','008_057_B','008_057_A'),
+        c('008_061_A','008_057_A'),
+        c('008_061_A','008_057_D'),    
+        c('008_061_A','008_057_B'),
+        c('008_061_A','008_057_D','008_057_C','008_057_B'),
+        c('008_061_A','008_057_C'),
+        c('008_061_A','008_061_D','008_057_A'),
+        c('008_061_B','008_057_A'),
+        c('008_061_A','008_057_B','008_057_A'),
+        c('008_061_A','008_057_D','008_057_B','008_057_A'),
+        c('008_061_A','008_057_D','008_057_C','008_057_B','008_057_A')),
+    sort_sets=FALSE,
+    sort_intersections=FALSE,
+    width_ratio=0.1,
+    name = "Overlap between TCR repertoires",
+    base_annotations = list(
+            'Intersection size'=intersection_size(
+                text = list(size = 7, angle = 90, hjust = 0, vjust = 0.5)
+            ) + ylab('Number of overlapping TCRs') 
+            + ggtitle("Endemic KS - Endemic KS")
+            + theme_classic() 
+            + labs(tag = "A")
+            + theme(axis.title.x = element_blank(),
+                plot.title = element_text(size = 30, face = "bold", family = "NimbusSan", hjust = 0.5),
+                axis.text.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.title.y = element_text(size = 24, face = "bold", family = "NimbusSan"),
+                axis.text.y = element_text(size = 22, face = "bold", family = "NimbusSan"),
+                plot.tag = element_text(size = 28, face = "bold", family = "NimbusSan"))),
+    set_sizes=(upset_set_size()+ ylab('Number of\nunique TCRs') 
+            + theme_void() 
+            + theme(axis.title.y = element_blank(),
+                axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 20, face = "bold", family = "NimbusSan", angle = 90, vjust = 0.5),
+                axis.ticks.x = element_line(linewidth = 2, colour = 'black' ))
+    )) +
+    theme(axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 24, face = "bold", family = "NimbusSan"))
+```
+
+```{r}
+# UpSetR plots for epidemic KS comparisons
+epidemic_upset_input_tibble <- alluvial_data |>
+    filter(str_detect(repertoire_id, "008_021|008_048"))  |>
+    left_join(study_metadata, by = "repertoire_id") |>
+    dplyr::select(repertoire_id, junction_aa, tissue_type, phenotype) |>
+    mutate(present = 1,
+        row_id = str_c(repertoire_id, tissue_type, phenotype, sep = " ")) |>
+    pivot_wider(id_cols = junction_aa, names_from = repertoire_id, values_from = present, values_fill = 0)
+
+epidemic_upset_rownames <- epidemic_upset_input_tibble |>
+    pull(junction_aa)
+epidemic_upset_input_table <- epidemic_upset_input_tibble |>
+    dplyr::select(-junction_aa) |>
+    as.data.frame() 
+rownames(epidemic_upset_input_table) <- epidemic_upset_rownames
+
+epidemic_upset <- upset(epidemic_upset_input_tibble, 
+    intersect = c("008_021_A", "008_021_B", "008_021_C", "008_021_D", "008_048_D", "008_048_C", "008_048_B", "008_048_A"),
+    queries = list(
+        upset_query(set = '008_021_A', fill = '#fb8072'),
+        upset_query(set = '008_021_B', fill = '#e41a1c'),
+        upset_query(set = '008_021_C', fill = '#e41a1c'),
+        upset_query(set = '008_021_D', fill = '#e41a1c'),
+        upset_query(set = '008_048_A', fill = '#fb8072'),
+        upset_query(set = '008_048_B', fill = '#e41a1c'),
+        upset_query(set = '008_048_C', fill = '#e41a1c'),
+        upset_query(set = '008_048_D', fill = '#e41a1c'),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_C','008_048_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_C','008_048_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_C','008_048_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_C','008_048_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_C'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A'), color = '#fb8072', fill = '#fb8072', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_D','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_C','008_048_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_C','008_048_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_C','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_C','008_048_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_048_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_021_B'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_C','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_C','008_021_C','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_B'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_021_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_D','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_048_C','008_048_D','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_D','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_B','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_048_A','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_A'), color = '#fb8072', fill = '#fb8072', only_components=c('intersections_matrix', 'Intersection size'))
+    ),
+    intersections = list(
+        '008_048_B','008_048_D','008_021_C','008_021_D',
+        '008_048_A','008_021_B','008_048_C','008_021_A',
+        c('008_048_B','008_048_D'),
+        c('008_048_B','008_048_C','008_048_D'),
+        c('008_048_C','008_048_D'),
+        c('008_048_B','008_048_C'),
+        c('008_021_D','008_021_C'),
+        c('008_021_D','008_021_C','008_021_B'),
+        c('008_021_C','008_021_B'),
+        c('008_021_D','008_021_B'),
+        c('008_048_A','008_048_B','008_048_C','008_048_D'),
+        c('008_048_A','008_048_B','008_048_D'),
+        c('008_048_A','008_048_B'),
+        c('008_048_A','008_048_D'),
+        c('008_048_A','008_048_B','008_048_C'),
+        c('008_048_A','008_048_C','008_048_D'),
+        c('008_048_A','008_048_C'),
+        c('008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_021_D','008_021_C','008_021_A'),
+        c('008_021_B','008_021_A'),
+        c('008_021_C','008_021_A'),
+        c('008_021_C','008_021_B','008_021_A'),
+        c('008_021_D','008_021_B','008_021_A'),
+        c('008_021_D','008_021_A'),
+        c('008_048_B','008_021_C'),
+        c('008_048_D','008_021_D'),
+        c('008_048_B','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_048_D','008_021_B'),
+        c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_D','008_021_C'),
+        c('008_048_B','008_048_D','008_021_C'),
+        c('008_048_B','008_048_D','008_021_B'),
+        c('008_048_B','008_021_B'),
+        c('008_048_B','008_048_D','008_021_D'),
+        c('008_048_B','008_021_D'),
+        c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_C'),
+        c('008_048_B','008_048_C','008_048_D','008_021_C'),
+        c('008_048_C','008_048_D','008_021_C'),
+        c('008_048_C','008_021_C'),
+        c('008_048_B','008_048_C','008_048_D','008_021_D','008_021_C'),
+        c('008_048_B','008_048_D','008_021_D','008_021_C'),
+        c('008_048_D','008_021_D','008_021_C'),
+        c('008_048_A','008_048_B','008_048_C','008_048_D','008_021_B'),
+        c('008_048_D','008_021_D','008_021_B'),
+        c('008_048_D','008_021_C','008_021_B'),
+        c('008_048_C','008_021_C','008_021_B'),
+        c('008_048_D','008_021_D','008_021_A'),
+        c('008_048_D','008_021_C','008_021_B','008_021_A'),
+        c('008_048_A','008_048_C','008_048_D','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_048_D','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_048_A','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_048_A','008_021_B'),
+        c('008_048_D','008_021_A'),
+        c('008_048_B','008_021_A')),
+    sort_sets=FALSE,
+    sort_intersections=FALSE,
+    width_ratio=0.1,
+    name = "Overlap between TCR repertoires",
+    base_annotations = list(
+            'Intersection size'=intersection_size(
+                text = list(size = 7, angle = 90, hjust = 0, vjust = 0.5)
+            ) + ylab('Number of overlapping TCRs') 
+            + ggtitle("Epidemic KS - Epidemic KS")
+            + theme_classic() 
+            + labs(tag = "B")
+            + theme(axis.title.x = element_blank(),
+                plot.title = element_text(size = 30, face = "bold", family = "NimbusSan", hjust = 0.5),
+                axis.text.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.title.y = element_text(size = 24, face = "bold", family = "NimbusSan"),
+                axis.text.y = element_text(size = 22, face = "bold", family = "NimbusSan"),
+                plot.tag = element_text(size = 28, face = "bold", family = "NimbusSan"))),
+    set_sizes=(upset_set_size()+ ylab('Number of\nunique TCRs') 
+            + theme_void() 
+            + theme(axis.title.y = element_blank(),
+                axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 20, face = "bold", family = "NimbusSan", angle = 90, vjust = 0.5),
+                axis.ticks.x = element_line(linewidth = 2, colour = 'black' ))
+    )) +
+    theme(axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 24, face = "bold", family = "NimbusSan"))
+
+```
+
+```{r}
+epiend_upset_input_tibble <- alluvial_data |>
+    filter(str_detect(repertoire_id, "008_021|008_057"))  |>
+    left_join(study_metadata, by = "repertoire_id") |>
+    dplyr::select(repertoire_id, junction_aa, tissue_type, phenotype) |>
+    mutate(present = 1,
+        row_id = str_c(repertoire_id, tissue_type, phenotype, sep = " ")) |>
+    pivot_wider(id_cols = junction_aa, names_from = repertoire_id, values_from = present, values_fill = 0)
+
+epiend_upset_rownames <- epiend_upset_input_tibble |>
+    pull(junction_aa)
+epiend_upset_input_table <- epiend_upset_input_tibble |>
+    dplyr::select(-junction_aa) |>
+    as.data.frame() 
+rownames(epiend_upset_input_table) <- epiend_upset_rownames
+
+# UpSetR plots for epidemic - endemic KS data comparisons
+epiend_upset_data <- upset_data(epiend_upset_input_table, 
+    intersect = c("008_021_A", "008_021_B", "008_021_C", "008_021_D", "008_057_D", "008_057_C", "008_057_B", "008_057_A"))
+
+combined_pal <- c("Epidemic KS - NAT" = "#fb8072", 
+  "Epidemic KS - Tumor" = "#e41a1c", "Endemic KS - NAT" = "#80b1d3",
+  "Endemic KS - Tumor" = "#377eb8", "Inter-subject\nNAT - NAT" = "#1b9e77", 
+  "Intra-subject\nNAT - Tumor" = "#d95f02",
+  "Intra-subject\nTumor - Tumor" = "#7570b3", 
+  "Inter-subject\nTumor - Tumor" = "#e7298a",
+  "Other" = "#606060")
+epiend_pal_table <- epiend_upset_data$plot_intersections_subset |>
+    as_tibble() |> 
+    dplyr::rename(intersections = value) |>
+    mutate(group = case_when(intersections == "008_021_A" ~ "Epidemic KS - NAT",
+        intersections == "008_057_A" ~ "Endemic KS - NAT",
+        intersections %in% c("008_057_B","008_057_C","008_057_D")~ "Endemic KS - Tumor",
+        intersections %in% c("008_021_B","008_021_C","008_021_D")~ "Epidemic KS - Tumor",
+        str_detect(intersections, "008_021") & !str_detect(intersections,"008_057") & str_detect(intersections,"A") & str_detect(intersections,'-') ~ "Intra-subject\nNAT - Tumor",
+        !str_detect(intersections, "008_021") & str_detect(intersections,"008_057") & str_detect(intersections,"A") & str_detect(intersections,'[BCD]') ~ "Intra-subject\nNAT - Tumor",
+        str_detect(intersections, "008_021") & !str_detect(intersections,"008_057") & !str_detect(intersections,"A") & str_detect(intersections,'[BCD]') ~ "Intra-subject\nTumor - Tumor",
+        !str_detect(intersections, "008_021") & str_detect(intersections,"008_057") & !str_detect(intersections,"A") & str_detect(intersections,'[BCD]') ~ "Intra-subject\nTumor - Tumor",
+        str_detect(intersections, "008_021") & str_detect(intersections,"008_057") & str_detect(intersections,"008_021_B|008_021_C|008_021_D") & str_detect(intersections,"008_057_B|008_057_C|008_057_D") ~ "Inter-subject\nTumor - Tumor",
+        intersections == "008_021_A-008_057_A" ~ "Inter-subject\nNAT - NAT",
+        str_detect(intersections,"008_021") & str_detect(intersections,"008_057") & !str_detect(intersections,"008_021_B") & !str_detect(intersections,"008_021_C") & !str_detect(intersections,"008_021_D") ~ "Other",
+        str_detect(intersections,"008_021") & str_detect(intersections,"008_057") & !str_detect(intersections,"008_057_B") & !str_detect(intersections,"008_057_C") & !str_detect(intersections,"008_057_D") ~ "Other"),
+        color = combined_pal[group])
+epiend_pal <- epiend_pal_table |>
+  pull(color) 
+names(epiend_pal) <- epiend_pal_table |>
+  pull(intersections) 
+```
+
+```{r}
+
+epiend_upset <- upset(epiend_upset_input_table, 
+    intersect = c("008_021_A", "008_021_B", "008_021_C", "008_021_D", "008_057_D", "008_057_C", "008_057_B", "008_057_A"),
+    queries = list(
+        upset_query(set = '008_021_A', fill = '#fb8072'),
+        upset_query(set = '008_021_B', fill = '#e41a1c'),
+        upset_query(set = '008_021_C', fill = '#e41a1c'),
+        upset_query(set = '008_021_D', fill = '#e41a1c'),
+        upset_query(set = '008_057_A', fill = '#80b1d3'),
+        upset_query(set = '008_057_B', fill = '#377eb8'),
+        upset_query(set = '008_057_C', fill = '#377eb8'),
+        upset_query(set = '008_057_D', fill = '#377eb8'),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_C','008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_C','008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_C','008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C','008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_D'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_D'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_C'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B'), color = '#377eb8', fill = '#377eb8', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A'), color = '#80b1d3', fill = '#80b1d3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_C','008_057_D','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_021_D'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_021_D'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C','008_057_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_C','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_021_C'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_D','008_021_C'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_057_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_C','008_021_D','008_021_B'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_021_C','008_021_B'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_B'), color = '#7570b3', fill = '#7570b3', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_B'), color = '#e41a1c', fill = '#e41a1c', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_A'), color = '#606060', fill = '#606060', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_C','008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_A','008_057_B','008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_057_B','008_021_D','008_021_C','008_021_B','008_021_A'), color = '#e7298a', fill = '#e7298a', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_D','008_021_C','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_C','008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_B','008_021_A'), color = '#d95f02', fill = '#d95f02', only_components=c('intersections_matrix', 'Intersection size')),
+        upset_query(intersect = c('008_021_A'), color = '#fb8072', fill = '#fb8072', only_components=c('intersections_matrix', 'Intersection size'))),
+    intersections = list(
+        '008_057_B','008_057_D','008_057_C','008_057_A',
+        '008_021_C','008_021_D','008_021_B','008_021_A',
+        c('008_057_B','008_057_D'),
+        c('008_057_B','008_057_C','008_057_D'),
+        c('008_057_B','008_057_C'),
+        c('008_057_C','008_057_D'),
+        c('008_021_D','008_021_C'),
+        c('008_021_D','008_021_C','008_021_B'),
+        c('008_021_C','008_021_B'),
+        c('008_021_D','008_021_B'),
+        c('008_057_A','008_057_B','008_057_C','008_057_D'),
+        c('008_057_A','008_057_D'),
+        c('008_057_A','008_057_B'),
+        c('008_057_A','008_057_C'),
+        c('008_057_A','008_057_B','008_057_D'),
+        c('008_057_A','008_057_C','008_057_D'),
+        c('008_057_A','008_057_B','008_057_C'),
+        c('008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_021_D','008_021_C','008_021_A'),
+        c('008_021_B','008_021_A'),
+        c('008_021_C','008_021_A'),
+        c('008_021_C','008_021_B','008_021_A'),
+        c('008_021_D','008_021_A'),
+        c('008_021_D','008_021_B','008_021_A'),
+        c('008_057_B','008_057_D','008_021_C'),
+        c('008_057_B','008_021_C'),
+        c('008_057_D','008_021_D'),
+        c('008_057_B','008_021_D'),
+        c('008_057_D','008_021_C'),
+        c('008_057_D','008_021_B'),
+        c('008_057_B','008_021_B'),
+        c('008_057_B','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_057_B','008_057_C','008_057_D','008_021_D'),
+        c('008_057_C','008_021_D'),
+        c('008_057_C','008_057_D','008_021_C'),
+        c('008_057_A','008_057_B','008_057_D','008_021_C'),
+        c('008_057_B','008_057_C','008_021_C'),
+        c('008_057_C','008_021_C'),
+        c('008_057_B','008_057_D','008_021_D','008_021_C'),
+        c('008_057_D','008_021_D','008_021_C'),
+        c('008_057_B','008_057_D','008_021_B'),
+        c('008_057_C','008_021_D','008_021_B'),
+        c('008_057_A','008_057_B','008_057_C','008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_057_A','008_057_B','008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_057_D','008_021_D','008_021_C','008_021_B','008_021_A'),
+        c('008_057_A','008_021_D'),
+        c('008_057_A','008_021_C'),
+        c('008_057_A','008_021_C','008_021_B'),
+        c('008_057_D','008_021_A')
+
+    ),
+    sort_sets=FALSE,
+    sort_intersections=FALSE,
+    width_ratio=0.1,
+    name = "Overlap between TCR repertoires",
+    base_annotations = list(
+            'Intersection size'=intersection_size(
+                aes(fill = intersection),
+                text = list(size = 7, angle = 90, hjust = 0, vjust = 0.5)
+            ) + ylab('Number of overlapping TCRs') 
+            + theme_classic() 
+            + ggtitle("Endemic KS - Epidemic KS") 
+            + labs(tag = "C") 
+            + scale_fill_manual(values = epiend_pal)
+            + theme(axis.title.x = element_blank(),
+                plot.title = element_text(size = 30, face = "bold", family = "NimbusSan", hjust = 0.5),
+                axis.text.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.title.y = element_text(size = 24, face = "bold", family = "NimbusSan"),
+                axis.text.y = element_text(size = 22, face = "bold", family = "NimbusSan"),
+                plot.tag = element_text(size = 28, face = "bold", family = "NimbusSan"),
+                legend.position = "right")),
+    set_sizes=(upset_set_size()+ ylab('Number of\nunique TCRs') 
+            + theme_void() 
+            + theme(axis.title.y = element_blank(),
+                axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.title.x = element_text(size = 24, face = "bold", family = "NimbusSan"),
+                axis.text.x = element_text(size = 20, face = "bold", family = "NimbusSan", angle = 90, vjust = 0.5),
+                axis.ticks.x = element_line(linewidth = 2, colour = 'black' ))
+    ), guides = "collect") +
+    scale_fill_manual(values = epiend_pal) +
+    theme(axis.title.x = element_text(size = 24, face = "bold", family = "NimbusSan"),
+        axis.text.y = element_text(size = 24, face = "bold", family = "NimbusSan")) 
+```
+
+```{r}
+supplementary_figure_seven <- endemic_upset / epidemic_upset / epiend_upset + plot_layout(guides = "collect")  & theme(text = element_text('NimbusSan'))
+
+ggsave(str_c(figures_path, "pdf", "Supplementary_figure_seven.pdf", sep = "/"), supplementary_figure_seven, width = 32, 
+    height = 30, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "png", "Supplementary_figure_seven.png", sep = "/"), supplementary_figure_seven, width = 32, 
+    height = 30)
+ggsave(str_c(figures_path, "svg", "Supplementary_figure_seven.svg", sep = "/"), supplementary_figure_seven, width = 32, 
+    height = 30)
+```
+
+## Section 4: Temporal overlap between KS tumors
+
+```{r}
+temporal_map_table <- study_metadata |>
+    filter(patient_id %in% c("008_141", "008_008")) |>
+    dplyr::select(patient_id, repertoire_id, phenotype, tissue_type, tumor_code, visit_code) |>
+    mutate(visit_code = str_c("Visit", str_extract(visit_code, "\\d+"), sep = " "),
+    label = if_else(tissue_type == "NAT", 
+        str_c(tissue_type, "\n", visit_code, sep = ""),
+        str_c(tissue_type, " ", tumor_code, "\n", visit_code, sep = ""))) |>
+    dplyr::select(repertoire_id, label)
+temporal_map_dict <- temporal_map_table |>
+    pull(label)
+names(temporal_map_dict) <- temporal_map_table |>
+    pull(repertoire_id)
+```
+
+### Figure 4:
+
+```{r}
+temopral_example_table <- study_annotated_nprod_table |>
+  filter(patient_id %in% c("008_141", "008_008")) |>
+  productiveSeq(aggregate = "junction_aa") 
+
+temporal_overlap_samples <- study_metadata |> 
+  filter(tissue_type %in% c( "Tumor") & 
+    str_detect(repertoire_id, "008_\\d+")) |>  
+  group_by(patient_id, hiv_status, visit_code) |> 
+  summarize(count = length(unique(repertoire_id))) |> 
+  pivot_wider(names_from = visit_code, values_from = count, values_fill = 0) |> 
+  filter(V01 != 0 & (V05 != 0 | V08 != 0)) |>
+  pull(patient_id)
+
+visit_map <- study_metadata |>
+  filter(tissue_type %in% c( "Tumor") & 
+    str_detect(repertoire_id, "008_\\d+")) |>
+  pull(visit_code)
+names(visit_map) <- study_metadata |>
+  filter(tissue_type %in% c( "Tumor") & 
+    str_detect(repertoire_id, "008_\\d+")) |>
+  pull(trb_repertoire_id)
+
+endemic_ug <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_141")) |>
+  mutate(color = "#377eb8") |>
+  pull(color) 
+
+endemic_alist <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_141")) |>
+  mutate(color = "#377eb8") |>
+  pull(junction_aa) 
+names(endemic_ug) <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_141")) |>
+  mutate(color = "#377eb8") |>
+  pull(junction_aa) 
+
+endemic_alluvial <- temopral_example_table |>
+  filter(str_detect(repertoire_id, "008_141")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |>
+  plotTrack(alist = endemic_alist, apal = endemic_ug) +
+  scale_x_discrete(labels = temporal_map_dict) +
+  labs(x = "Sample") + 
+  theme_classic(base_size = 30) +
+  theme(legend.position = "none", 
+    axis.text.x = element_text(face = "bold", color = "black"))
+
+epidemic_ug <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_008")) |>
+  mutate(color = "#e41a1c") |>
+  pull(color) 
+epidemic_alist <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_008")) |>
+  mutate(color = "#e41a1c") |>
+  pull(junction_aa) 
+names(epidemic_ug) <- temopral_example_table |> 
+  filter(junction_aa %in% kstme_clustered_unknown_table$junction_aa & 
+    str_detect(repertoire_id, "008_008")) |>
+  mutate(color = "#e41a1c") |>
+  pull(junction_aa) 
+
+epidemic_alluvial <- temopral_example_table |>
+  filter(str_detect(repertoire_id, "008_008")) |>
+  topSeqs(top = 500) |>
+  cloneTrack() |>
+  plotTrack(alist = epidemic_alist, apal = epidemic_ug) +
+  scale_x_discrete(labels = temporal_map_dict) +
+  labs(x = "Sample") + 
+  theme_classic(base_size = 30)  +
+  theme(legend.position = "none",
+   axis.text.x = element_text(face = "bold", color = "black"))
+
+figure_four_layout <- "
+11112222
+11112222
+11112222"
+figure_four <- (endemic_alluvial + epidemic_alluvial +plot_layout(guides = "auto"))  +
+  plot_layout(design = figure_four_layout) +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan', face = "bold"))
+ggsave(str_c(figures_path, "pdf", "Figure_four.pdf", sep = "/"), figure_four, 
+  width = 30, height = 30)
+ggsave(str_c(figures_path, "svg", "Figure_four.svg", sep = "/"), figure_four, 
+  width = 30, height = 30)
+ggsave(str_c(figures_path, "png", "Figure_four.png", sep = "/"), figure_four, 
+  width =  30, height = 30)
+```
+
+## Section 5: Temporal sharing of TCRs in single-cell sequencing data
+
+### Load 10X PBMC dataset
+
+```{r}
+pbmc_objects <- list.files(path = seurat_input_path,
+  pattern = "V\\d+", full.names = TRUE) |>
+  map(LoadH5Seurat)|>
+  map(~subset(.x, subset = discard == 0 & scDblFinder.class == "singlet")) |>
+  map(NormalizeData) |>
+  map(~FindVariableFeatures(.x, selection.method = "vst", nfeatures = 2000)) 
+  
+pbmc_features <- SelectIntegrationFeatures(object.list = pbmc_objects)
+
+pbmc_objects <- pbmc_objects |>
+  map(~ScaleData(.x, features = pbmc_features)) |>
+  map(~RunPCA(.x, features = pbmc_features))
+
+pbmc_anchors <- FindIntegrationAnchors(object.list = pbmc_objects, 
+  anchor.features = pbmc_features, reduction = "rpca")
+pbmc_integrated <- IntegrateData(anchorset = pbmc_anchors)
+DefaultAssay(pbmc_integrated) <- "integrated"
+pbmc_integrated <- ScaleData(pbmc_integrated, verbose = FALSE)
+pbmc_integrated <- RunPCA(pbmc_integrated, npcs = 30, verbose = FALSE)
+pbmc_integrated <- RunUMAP(pbmc_integrated, reduction = "pca", dims = 1:30)
+pbmc_integrated <- RunTSNE(pbmc_integrated, reduction = "pca", dims = 1:30)
+pbmc_integrated <- FindNeighbors(pbmc_integrated, reduction = "pca", dims = 1:30)
+pbmc_integrated <- FindClusters(pbmc_integrated, resolution = 0.5)
+DefaultAssay(pbmc_integrated) <- "RNA"
+```
+
+```{r}
+pbsample_table <- pbmc_integrated@meta.data |>
+  as_tibble() |>
+  dplyr::select(Sample) |>
+  distinct() 
+
+pbcohort_table <- read_csv(kstme_metadata_path) |> 
+  filter(!is.na(gex_library)) |> 
+  dplyr::select(patient_id, repertoire_id, hiv_status,response) |> 
+  mutate(cohort = if_else(hiv_status == "Positive", "Epidemic KS", "Endemic KS")) |> 
+  dplyr::select(patient_id, repertoire_id, cohort, response) |>
+  filter(repertoire_id %in% pbsample_table$Sample) |>
+  dplyr::select(repertoire_id, cohort, response) |>
+  mutate(cohort = if_else(is.na(cohort), "Epidemic KS", cohort),
+    response = factor(response, levels = c("CR", "PR" ,"SD", "PD")))
+
+cohort_dict <- pbcohort_table |>
+  pull(cohort) 
+names(cohort_dict) <- pbcohort_table |>
+  pull(repertoire_id)
+
+pbmc_integrated@meta.data$cohort <- cohort_dict[pbmc_integrated@meta.data$Sample]
+pbmc_tcells <- pbmc_integrated@meta.data |>
+  as_tibble() |>
+  mutate(isT = if_else(CTaa == "NA", "Other", "Tcell")) |>
+  pull(isT)
+pbmc_integrated@meta.data$is_tcell <- pbmc_tcells
+```
+
+```{r}
+#Convert all ensemble IDs to Gene symbols
+
+feature_table <- pbmc_integrated[["RNA"]][[]]
+feature_table$ensembl_id <- rownames(feature_table)
+master_gene_table <- feature_table |>
+  dplyr::mutate(symbol = mapIds(org.Hs.eg.db, keys = feature_table$ensembl_id, keytype = "ENSEMBL", column = "SYMBOL")) |>
+  filter(!is.na(symbol)) |>
+  group_by(symbol) |>
+  slice_head(n =1) |>
+  ungroup() 
+master_gene_dict <- master_gene_table |>
+  pull(symbol)
+names(master_gene_dict) <- master_gene_table |>
+  pull(ensembl_id)
+pbmc_gs <- pbmc_integrated[rownames(pbmc_integrated) %in% master_gene_table$ensembl_id, ]
+pbmc_gsc <- as.SingleCellExperiment(pbmc_integrated)
+pbmc_gsc <- pbmc_gsc[rownames(pbmc_gsc) %in% master_gene_table$ensembl_id, ]
+pbmc_gsc <- scuttle::logNormCounts(pbmc_gsc) 
+rownames(pbmc_gsc) <- master_gene_dict[rownames(pbmc_gsc)]
+pbmc_gs <- CreateSeuratObject(counts = assay(pbmc_gsc, "counts"), data = assay(pbmc_gsc, "logcounts"))
+pbmc_gs@meta.data <- colData(pbmc_gsc) |> 
+  as.data.frame()
+pbmc_gs <- NormalizeData(pbmc_gs)
+pbmc_gs <- FindVariableFeatures(pbmc_gs, selection.method = "vst", nfeatures = 2000)
+pbmc_gs <- ScaleData(pbmc_gs, verbose = FALSE)
+pbmc_gs <- RunPCA(pbmc_gs, npcs = 30, verbose = FALSE)
+pbmc_gs <- RunUMAP(pbmc_gs, reduction = "pca", dims = 1:30)
+pbmc_gs <- RunTSNE(pbmc_gs, reduction = "pca", dims = 1:30)
+pbmc_gs <- FindNeighbors(pbmc_gs, reduction = "pca", dims = 1:30)
+pbmc_gs <- FindClusters(pbmc_gs, resolution = 0.5)
+DefaultAssay(pbmc_gs) <- "RNA"
+```
+
+```{r}
+#Azimuth classification
+pbmc_gs <- SCTransform(pbmc_gs, verbose = FALSE)
+reference <- LoadH5Seurat(azimuth_reference_path)
+
+anchors <- FindTransferAnchors(
+  reference = reference,
+  query = pbmc_gs,
+  normalization.method = "SCT",
+  reference.reduction = "spca",
+  dims = 1:50
+)
+              
+pbmc_gs <-  MapQuery(
+  anchorset = anchors,
+  query = pbmc_gs,
+  reference = reference,
+  refdata = list(
+    celltype.l1 = "celltype.l1",
+    celltype.l2 = "celltype.l2",
+    predicted_ADT = "ADT"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+
+pbmc_gs$cloneType <- pbmc_gs@meta.data |> 
+  as_tibble() |>
+  mutate(cloneType = if_else(cloneType == "NA", NA_character_, cloneType)) |>
+  pull(cloneType)
+
+clones <- pbmc_gs@meta.data |> 
+  as_tibble(rownames = "cell_id") |>
+  filter(!is.na(cloneType)) |>
+  pull(cell_id)
+DefaultAssay(pbmc_gs) <- "RNA"
+```
+
+### Figure 5:
+
+```{r}
+pbmc_gs$celltype <- pbmc_gs@meta.data |>
+  as_tibble() |>
+  mutate(celltype = case_when(
+    predicted.celltype.l2 %in% c("ASDC", "cDC1", "cDC2", "pDC") ~ "DC",
+    predicted.celltype.l2 %in% c("B intermediate", "B memory", "B naive") ~ "B cell",
+    predicted.celltype.l2 %in% c("Doublet", "HSPC", "ILC", "Plasmablast", "Platelet") ~ "Other",
+    TRUE ~ predicted.celltype.l2
+  )) |>
+  pull(celltype)
+
+palette <- c("B cell" = "#e41a1c", "CD14 Mono" = "#377eb8", "CD16 Mono" = "#a6cee3", 
+  "CD4 CTL" = "#ff7f00", "CD4 Naive" = "#fdbf6f", 
+  "CD4 Proliferating" = "#fdae6b", "CD4 TCM" = "#a63603", "CD4 TEM" = "#f16913", 
+  "CD8 Naive"= "#984ea3", 
+  "CD8 Proliferating" = "#bcbddc", "CD8 TCM" = "#3f007d", "CD8 TEM" = "#807dba", "DC" = "#999999", 
+  "dnT" = "#ffff33", "MAIT" = "#ffeda0", "gdT" = "#a65628", "NK" = "#f781bf",
+  "NK Proliferating", "NK_CD56bright", "Treg" = "#4daf4a", "Other" = "grey")
+
+
+celltype_umap <- DimPlot(pbmc_gs, reduction = "ref.umap", raster = FALSE, 
+  group.by = "celltype", label = TRUE, cols = palette,
+  label.size = 8 ,repel = TRUE) + theme_classic(base_size = 24) +
+  guides(fill = guide_legend(override.aes = list(size = 16))) +
+  theme(plot.title = element_blank())
+
+
+persample_alluvial <- function(celltype_table) {
+  ptid <- celltype_table |>
+    pull(patient_id) |>
+    unique()
+  palette <- c("B cell" = "#e41a1c", "CD14 Mono" = "#377eb8", "CD16 Mono" = "#a6cee3", 
+  "CD4 CTL" = "#ff7f00", "CD4 Naive" = "#fdbf6f", 
+  "CD4 Proliferating" = "#fdae6b", "CD4 TCM" = "#a63603", "CD4 TEM" = "#f16913", 
+  "CD8 Naive"= "#984ea3",
+  "CD8 Proliferating" = "#bcbddc", "CD8 TCM" = "#3f007d", "CD8 TEM" = "#807dba", "DC" = "#999999", 
+  "dnT" = "#ffff33", "MAIT" = "#ffeda0", "gdT" = "#a65628", "NK" = "#f781bf",
+  "NK Proliferating", "NK_CD56bright", "Treg" = "#4daf4a", "Other" = "grey")
+  celltype_table <- celltype_table |>
+    mutate(Sample = str_extract(Sample, "V\\d+$"))
+  celltype_alluvial <-  ggplot2::ggplot(
+  celltype_table,
+  aes(
+      x = Sample, y = duplicate_frequency, stratum = celltype,
+      alluvium = celltype, fill = celltype, 
+      label = celltype
+    )
+  ) +
+  ggalluvial::geom_alluvium() +
+  ggalluvial::geom_stratum(ggplot2::aes(y = duplicate_frequency)) +
+  ggplot2::xlab("Repertoire ID") +
+  ggplot2::ylab("Frequency of cell type") +
+  ggplot2::ggtitle(ptid) +
+  ggplot2::scale_fill_manual(values = palette) +
+  ggplot2::theme_classic(base_size =  24) +
+  ggplot2::theme(
+    legend.position = "none",
+    axis.text.x = ggplot2::element_text(angle = -90)
+  )
+  return(celltype_alluvial)
+}
+
+celltype_table <- pbmc_gs@meta.data |>
+  as_tibble() |>
+  mutate(celltype = case_when(
+    predicted.celltype.l2 %in% c("ASDC", "cDC1", "cDC2", "pDC") ~ "DC",
+    predicted.celltype.l2 %in% c("B intermediate", "B memory", "B naive") ~ "B cell",
+    predicted.celltype.l2 %in% c("Doublet", "HSPC", "ILC", "Plasmablast", "Platelet", "Eryth") ~ "Other",
+    TRUE ~ predicted.celltype.l2
+  )) |>
+  group_by(Sample, celltype) |>
+  summarize(duplicate_count = length(unique(Barcode))) |>
+  group_by(Sample) |>
+  mutate(duplicate_frequency = (duplicate_count*100) / sum(duplicate_count)) |>
+  ungroup() |>
+  mutate(patient_id = str_extract(Sample, "008_\\d+"))
+
+celltype_alluvials <- celltype_table |>
+  group_by(patient_id) |>
+  group_split() |>
+  map(persample_alluvial)
+
+figure_one_layout <- "000
+000
+000
+123
+456
+789"
+
+figure_five <- celltype_umap + celltype_alluvials[[1]] +
+  celltype_alluvials[[2]] + celltype_alluvials[[3]] +
+  celltype_alluvials[[4]] + celltype_alluvials[[5]] +
+  celltype_alluvials[[6]] + celltype_alluvials[[7]] +
+  celltype_alluvials[[8]] + celltype_alluvials[[9]] +
+  plot_layout(design = figure_one_layout, guides = "collect") +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan'))
+
+
+ggsave(str_c(figures_path, "pdf", "Figure_five.pdf", sep = "/"), figure_five, 
+  width = 20, height = 30, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_five.svg", sep = "/"), figure_five, 
+  width = 20, height = 30)
+ggsave(str_c(figures_path, "png", "Figure_five.png", sep = "/"), figure_five, 
+  width = 20, height = 30)
+```
+
+## Section 6: Identify T-cells from peripheral blood that map to CLusteredUnknowns
+
+```{r}
+kstil_data <- list.files(str_c(tcr_sequencing_path, "TRB/KS/", sep = "/"), 
+  pattern = "008_216|008_217|008_220|008_235|008_241|008_236|008_252|008_255|008_256",
+  full.names = TRUE) |>
+  readImmunoSeq() |>
+  productiveSeq() |> 
+  dplyr::rename(trb_repertoire_id = repertoire_id) |>
+  inner_join(study_metadata, by = "trb_repertoire_id") |>
+  filter(tissue_type == "Tumor") |>
+  dplyr::select(patient_id, junction_aa, duplicate_count)
+```
+
+```{r}
+kstme_clustered_unknown_tcrs <- kstme_clustered_unknown_table |>
+    dplyr::select(pattern, junction_aa) |>
+    distinct()
+```
+
+```{r}
+pbmc_tcells_type <- pbmc_gs@meta.data |>
+  as_tibble(rownames = "cell_id") |>
+  separate(CTaa, into = c("tra", "trb"), sep = "_", remove = F) |>
+  mutate(tra = if_else(tra == "NA", str_replace_all(tra, "NA", NA_character_), tra),
+    trb = if_else(trb == "NA", str_replace_all(trb, "NA", NA_character_), trb)) |>
+  filter(!is.na(trb) ) |>
+  inner_join(kstme_clustered_unknown_tcrs, by = c("trb" = "junction_aa"), relationship = "many-to-many") |>
+  filter(trb %in% kstil_data$junction_aa) |>
+  dplyr::rename(repertoire_id = Sample, 
+    cell_type = predicted.celltype.l2) |>
+  mutate(tcr_id = str_c(repertoire_id, trb,cell_type, sep = ";")) |>
+  dplyr::select(tcr_id, pattern, repertoire_id, trb, cell_id, Barcode, Frequency)
+
+```
+
+```{r}
+
+packEmUp <- function(pbmc_tcells_type, gsize_filter = 3) {
+    pbmc_pack_plot_table <- pbmc_tcells_type |>
+        group_by(pattern, tcr_id) |>
+        summarize(cell_count = length(unique(cell_id)),
+            frequency_count = sum(Frequency)) |>
+        group_by(pattern) |>
+        mutate(ptid = str_extract(tcr_id, "008_\\d+"),
+            gsize = length(unique(ptid))) |>
+        filter(gsize >= gsize_filter )
+    gcount_table <- pbmc_pack_plot_table |>
+        group_by(pattern) |>
+        summarize(count = sum(cell_count)) |>
+        dplyr::rename(name = pattern)   
+    tcount_table <- pbmc_pack_plot_table |>
+        ungroup() |>
+        dplyr::select(tcr_id, cell_count) |>
+        dplyr::rename(count = cell_count,
+            name = tcr_id)  
+    count_table <- bind_rows(gcount_table, tcount_table)
+    count_dict <- count_table |> pull(count)
+    names(count_dict) <- count_table |> pull(name)
+    sample_pal <- c("008_216" = "#08306b", "008_241" = "#4292c6", 
+        "008_252" = "#c6dbef", "008_236" = "#08519c", 
+        "008_217" = "#67000d", "008_220" = "#a50f15", 
+        "008_255" = "#fb6a4a" , "008_256" = "#fcbba1",
+        "008_235" = "#ef3b2c")
+    gtable <- pbmc_pack_plot_table |>
+        dplyr::select(pattern, tcr_id) |>
+        dplyr::rename(from = pattern, to = tcr_id)  |>
+        dplyr::select(from, to) 
+    graph <- gtable |>
+        group_by(from) |>
+        group_split() |>
+        map(buildGliphNetworks) |>
+        bind_graphs() |> 
+        mutate(ptid = str_extract(name, "008_\\d+"),
+            ptid = factor(ptid, levels = c("008_216", "008_236", "008_241", "008_252",
+            "008_217", "008_220", "008_235", "008_255", "008_256")),
+            cell_type = str_remove(str_extract(name, ";\\w+\\s?\\w+$"), ";"),
+            count = count_dict[name]) |>
+        mutate(group_size = if_else(is.na(cell_type), NA_integer_, count))
+
+    palette <- c("B cell" = "#e41a1c", "CD14 Mono" = "#377eb8", "CD16 Mono" = "#a6cee3", 
+    "CD4 CTL" = "#ff7f00", "CD4 Naive" = "#fdbf6f", 
+    "CD4 Proliferating" = "#fdae6b", "CD4 TCM" = "#a63603", "CD4 TEM" = "#f16913", 
+    "CD8 Naive"= "#984ea3", 
+    "CD8 Proliferating" = "#bcbddc", "CD8 TCM" = "#3f007d", "CD8 TEM" = "#807dba", "DC" = "#999999", 
+    "dnT" = "#ffff33", "MAIT" = "#ffeda0", "gdT" = "#a65628", "NK" = "#f781bf",
+    "NK Proliferating", "NK_CD56bright", "Treg" = "#4daf4a", "Other" = "grey")
+    set.seed(12357)
+    ptid_plot <- ggraph(graph, 'circlepack', weight = count) + 
+        geom_node_circle(aes(fill = ptid), show.legend = TRUE) + 
+        coord_fixed() +
+        scale_fill_manual(values = sample_pal, na.value = alpha("#99d8c9", 0.2)) + 
+        geom_text(aes(x = x, y = y, label = group_size)) +
+        labs(fill = "Patient ID", size = "Cell count") +
+        theme_void(base_size = 24) +
+        theme(legend.position = "right")
+    set.seed(12357)
+    ctype_plot <- ggraph(graph, 'circlepack', weight = count) + 
+        geom_node_circle(aes(fill = cell_type)) + 
+        coord_fixed() +
+        scale_fill_manual(values = palette, na.value = alpha("#99d8c9", 0.2)) +
+        scale_size_binned() + 
+        labs(fill = "Cell type", size = "Cell count") +
+        theme_void(base_size = 24) 
+    return(list(ptid_plot, ctype_plot))
+}
+
+buildGliphNetworks <- function(gtable) {
+    graph <- gtable |>
+        dplyr::select(from, to, everything()) |>
+        igraph::graph_from_data_frame() |>
+        as_tbl_graph()
+    return(graph)
+}
+
+kspbmc_cell_pack_four <- packEmUp(pbmc_tcells_type, gsize_filter = 4)
+kspbmc_cell_pack_three <- packEmUp(pbmc_tcells_type, gsize_filter = 3)
+```
+
+```{r}
+pbmc_logo_table <- pbmc_gs@meta.data |>
+  as_tibble(rownames = "cell_id") |>
+  separate(CTaa, into = c("tra", "trb"), sep = "_", remove = F) |>
+  mutate(tra = if_else(tra == "NA", str_replace_all(tra, "NA", NA_character_), tra),
+    trb = if_else(trb == "NA", str_replace_all(trb, "NA", NA_character_), trb)) |>
+  filter(!is.na(trb) ) |>
+  inner_join(kstme_clustered_unknown_tcrs, by = c("trb" = "junction_aa"), relationship = "many-to-many") |>
+  filter(trb %in% kstil_data$junction_aa) |>
+  dplyr::select(Sample, CTaa, pattern, tra, trb, cell_id, Frequency) |>
+  group_by(Sample, pattern, CTaa, tra, trb) |>
+  mutate(count = length(unique(cell_id))) |>
+  left_join(study_metadata |> dplyr::select(repertoire_id, phenotype), by = c("Sample" = "repertoire_id"))
+pbmc_logo_table
+```
+
+```{r}
+pbmc_logo_quant_table <- pbmc_logo_table |>
+    mutate(Sample = str_extract(Sample, "008_\\d+")) |>
+    group_by(pattern) |>
+    mutate(nptids = length(unique(Sample)),
+        nseqs = length(CTaa),
+        nunique = length(unique(CTaa))) |>
+    dplyr::select(-Sample) |>
+    distinct() 
+
+top_pbmc_groups <- pbmc_logo_quant_table |>
+    filter(nptids > 2) |>
+    dplyr::select(pattern, nptids, nseqs, nunique) |>
+    ungroup() |>
+    distinct() |>
+    arrange(desc(nseqs)) |>
+    slice_head(n = 2)
+
+top_pbmc_groups
+```
+
+```{r}
+logosGalore <- function(pattern_table) {
+    pattern <- pattern_table |>
+        pull(pattern) |>
+        unique()
+    tra_list <- pattern_table |>
+        dplyr::select(tra) |>
+        distinct() |>
+        pull(tra)
+    names(tra_list) <- pattern_table |>
+        dplyr::select(tra) |>
+        distinct() |>
+        mutate(tra_id = str_c(tra, row_number(), sep = "_")) |>
+        pull(tra_id)
+    tra_logo <- seqlogo(AAStringSet(tra_list), color = "Chemistry_AA") +
+        ggtitle(str_c("Specifcity group: ", pattern, sep = "")) 
+    trb_list <- pattern_table |>
+        dplyr::select(trb) |>
+        distinct() |>
+        pull(trb) 
+    names(trb_list) <- pattern_table |>
+        dplyr::select(trb) |>
+        distinct() |>
+        mutate(trb_id = str_c(trb, row_number(), sep = "_")) |>
+        pull(trb_id) 
+    trb_logo <- seqlogo(AAStringSet(trb_list), color = "Chemistry_AA") 
+    return(list(tra_logo, trb_logo))
+}
+```
+
+### Figure 6:
+
+```{r}
+pbmc_top_patterns_logos <-  pbmc_logo_quant_table |>
+    filter(pattern %in% top_pbmc_groups$pattern) |>
+    group_by(pattern) |>
+    group_split() |>
+    map(logosGalore) |>
+    wrap_plots(nrow = 5, ncol = 2)
+
+figure_six <- ((kspbmc_cell_pack_three[[1]] + labs(tag = 'A')) |
+    (kspbmc_cell_pack_three[[2]] + labs(tag = 'B'))) /
+    ((pbmc_top_patterns_logos[[1]][[1]] + labs(tag = 'C')) +
+     pbmc_top_patterns_logos[[1]][[2]] |
+     pbmc_top_patterns_logos[[2]][[1]] +
+     pbmc_top_patterns_logos[[2]][[2]]) + 
+     plot_layout(nrow = 2, widths = c(20, 20, 10, 10,10,10),
+        heights = c(20,20,5,5,5,5), guides = "collect") &
+    theme(text = element_text('NimbusSan')) 
+
+
+ggsave(str_c(figures_path, "pdf", "Figure_six.pdf", sep = "/"), figure_six, 
+  width = 35, height = 30, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_six.svg", sep = "/"), figure_six, 
+  width = 35, height = 30)
+ggsave(str_c(figures_path, "png", "Figure_six.png", sep = "/"), figure_six, 
+  width = 35, height = 30)
+```
+
+# Section 7: Characterize all the cell from the 10X data
+
+### Figure 7:
+
+```{r}
+figure_seven <- FeaturePlot(pbmc_gs, 
+  features = c("CD4", "CD8A", "CD8B", "NCAM1", 
+  "GZMA", "GZMB", "PRF1",  "IFNG", 
+  "PDCD1", "CTLA4", "LAG3", "HAVCR2", 
+   "MKI67", "KLRG1", "ENTPD1", "CD68",
+   "CD163", "IL10", "VEGFA", "MAF"), ncol = 4,
+   keep.scale = "all", pt.size = 1, reduction = "ref.umap")
+
+ggsave(str_c(figures_path, "pdf", "Figure_seven.pdf", sep = "/"), figure_seven, 
+  width = 16, height = 20, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_seven.svg", sep = "/"), figure_seven, 
+  width = 16, height = 20)
+ggsave(str_c(figures_path, "png", "Figure_seven.png", sep = "/"), figure_seven, 
+  width = 16, height = 20)
+```
+
+## Section 8: Characterization of clustered unknown in AIRR-Seq data from KSHV+ PBMC datasets
+
+### Load KS, KOBS, and U035 data
+
+```{r}
+kspbmc_trb_path <- str_c(tcr_v3_sequencing_path, "ks", sep = "/")
+kskobs_trb_path <- str_c(tcr_v3_sequencing_path, "kobs", sep = "/")
+ksu035_trb_path <- str_c(tcr_sequencing_path, "TRB/U035_KSHV", sep "/")
+kspbmc_trb_files <- list.files(kspbmc_trb_path, pattern = "^008_\\d+_V\\d+_\\d+",
+    full.names = TRUE)
+kskobs_trb_files <- list.files(kskobs_trb_path, pattern = "tsv",
+    full.names = TRUE)
+ksu035_trb_files <- list.files(ksu035_trb_path, pattern = "tsv",
+    full.names = TRUE)
+```
+
+```{r}
+kspbmc_study_table <- readImmunoSeq(c(kspbmc_trb_files, kskobs_trb_files)) 
+kspbmc_amino_acid_table <- productiveSeq(kspbmc_study_table)
+kspbmc_nprod_table <- productiveSeq(kspbmc_study_table, aggregate = "junction")
+```
+
+### Generate PBMC metadata with HLA information
+
+```{r}
+kspbmc_metadata <- study_metadata |>
+    filter(tissue_type == "PBMC") |>
+    dplyr::select(-c('tra_repertoire_id','rna_libraries',
+        'nanostring_libraries','gex_library','vdj_library','sc_library_count'))
+print(str_c("Data : KS PBMC"))
+print(str_c("Number of PTIDs : ", kspbmc_metadata |> pull(patient_id) |> unique() |> length(), sep = ""))
+print(str_c("Number of repertoires : ", kspbmc_metadata |> pull(repertoire_id) |> unique() |> length(), sep = ""))
+```
+
+```{r}
+# Load KOBS sequencing metadata
+kskobs_metadata_path <- str_c(analysis_path, "metadata/Control_metadata.csv", sep = "/")
+kskobs_metadata <- read_csv(kskobs_metadata_path, show_col_types = FALSE) |>
+    dplyr::select(-c('tra_repertoire_id','rna_libraries','nanostring_libraries',
+        'gex_library','vdj_library','sc_library_count')) |>
+    filter(!is.na(trb_repertoire_id)) |>
+    mutate(ptid = str_pad(str_extract(patient_id, "\\d+$"), width = 3, side = "left", pad = "0")) |>
+    dplyr::select(ptid, everything())
+kskobs_metadata
+```
+
+```{r}
+# Load KOBS clinical metadata
+kskobs_clinical_path <- str_c(analysis_path, "metadata/KOBS_metadata.RData", sep = "/")
+load(kskobs_clinical_path)
+kskobs_clinical_metadata <- perperson |>
+    dplyr::select(ptid, med_hhv8_logcopy_oral, CD4, rna)
+```
+
+```{r}
+kskobs_metadata <- kskobs_metadata |> left_join(kskobs_clinical_metadata) |>
+    dplyr::mutate(phenotype = case_when(hiv_status == "Negative" & kshv_status == "Negative" ~ "Control",
+        hiv_status == "Positive" & kshv_status == "Negative" ~ "HIV Positive",
+        hiv_status == "Negative" & kshv_status == "Positive" ~ "KSHV Positive",
+        hiv_status == "Positive" & kshv_status == "Positive" ~ "HIV & KSHV Positive")) |>
+    dplyr::rename(KSHV_Oral = med_hhv8_logcopy_oral, 
+        CD4_count = CD4, HIV = rna) |>
+    dplyr::select(-ptid)
+kskobs_metadata
+```
+
+```{r}
+kspbmc_study_metadata <- bind_rows(kspbmc_metadata, kskobs_metadata)
+```
+
+### Prep GLIPH2 inputs for KOBS and KS PBMC
+
+```{r}
+kspbmc_gliph_trb_table <- kspbmc_study_metadata |>
+    left_join(kspbmc_amino_acid_table, by = c("trb_repertoire_id" = "repertoire_id")) |>
+    mutate(gliph_id = str_c(repertoire_id, phenotype, sep = ":"),
+        CDR3a = NA_character_) |>
+    dplyr::select(junction_aa, v_call, j_call, CDR3a, gliph_id, duplicate_count) 
+kspbmc_gliph_trb_table
+```
+
+```{r}
+kspbmc_gliph_hla_table <- kspbmc_study_metadata |>
+    dplyr::select(repertoire_id, aAllele1:DRB345allele2) |>
+    distinct()
+kspbmc_gliph_hla_table
+```
+
+```{r}
+kspbmc_gliph_trb_input_table <- str_c(table_path, "kspbmc_gliph", "gliph_trb_table.tsv", sep = "/")
+kspbmc_gliph_hla_input_table <- str_c(table_path, "kspbmc_gliph", "gliph_hla_table.tsv", sep = "/")
+write_tsv(kspbmc_gliph_trb_table, kspbmc_gliph_trb_input_table)
+write_tsv(kspbmc_gliph_hla_table, kspbmc_gliph_hla_input_table)
+```
+
+### Read GLIPH2 outputs from PBMC data
+
+```{r}
+kspbmc_gliph_clusters_table <- read_csv(kspbmc_gliph_clusters_path, show_col_types = FALSE)
+kspbmc_gliph_hlapreds_table <- read_csv(kspbmc_gliph_hlapreds_path, show_col_types = FALSE)
+```
+
+### Get HLA matched TCRs from RAW PBMC AIRR-Seq data
+
+```{r}
+kspbmc_annotated_nprod_table <- kspbmc_nprod_table |>
+    dplyr::rename(trb_repertoire_id = repertoire_id) |>
+    inner_join(kspbmc_study_metadata, by = c("trb_repertoire_id"))
+kspbmc_annotated_nprod_table
+```
+
+```{r}
+kspbmc_hla_matched_tcr <- kspbmc_annotated_nprod_table |>
+    mutate(visit_code = if_else(is.na(visit_code), "V01", visit_code)) |>
+    inner_join(antigen_db, by = c("junction_aa" = "trb_cdr3_aa"), 
+        relationship = "many-to-many") |>
+    dplyr::select(patient_id, repertoire_id, junction, junction_aa, epitope, pathology,
+        antigen, mhc_allele, aAllele1:DRB345allele2) |> 
+    pivot_longer(cols = aAllele1:DRB345allele2, names_to = "allele",
+        values_to = "mhc_value") |> 
+    mutate(mhc_allele = str_remove(mhc_allele, "HLA-"),
+        hla_matched = if_else(mhc_allele == mhc_value |
+            mhc_allele == str_extract(mhc_value, "\\w+\\*\\d+:\\d+") |
+            mhc_allele == str_extract(mhc_value, "\\w+\\*\\d+"), TRUE, FALSE)) |>
+    filter(hla_matched) |> 
+    dplyr::select(patient_id:junction_aa, epitope:antigen) |>
+    distinct() |> 
+    group_by(patient_id, repertoire_id, junction, junction_aa) |>
+    summarise(npath = length(unique(pathology)),
+        pathology = str_c(unique(pathology), collapse = ";")) |>
+    ungroup() |>
+    mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) |>
+    dplyr::select(patient_id, repertoire_id, junction, junction_aa, pathology) |>
+    distinct() |>
+    mutate(pathology = recode(pathology, 
+        `HomoSapiens` = "Other", "Homo sapiens" = "Other", 
+        "SelaginellaMoellendorffii" = "Other", "TriticumAestivum" = "Other", 
+        "synthetic" = "Other", "MCPyV" = "Other"))
+kspbmc_hla_matched_tcr
+```
+
+```{r}
+kspbmc_path_annotated_nprod_table <- kspbmc_annotated_nprod_table |> 
+    left_join(kspbmc_hla_matched_tcr) |>
+    filter(str_detect(junction_aa, "^C") & str_detect(junction_aa, "F$")) |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, pathology, junction_aa, duplicate_frequency) |>
+    mutate(pathology = str_replace_na(pathology, "Unknown"),
+        cohort = if_else(is.na(cohort), "KOBS", cohort)) |>
+    group_by(cohort, repertoire_id, pathology, phenotype, tissue_type) |>
+    summarize(frequency = sum(duplicate_frequency)) |>
+    ungroup()
+```
+
+## Get HLA matched GLIPH groups with known antigenic specificity 
+
+```{r}
+kspbmc_gliph_clusters_path <- str_c(analysis_path, "gliph/kspbmc_gliph_run/gliph_clusters_cluster.csv", sep = "/")
+kspbmc_gliph_hlapreds_path <-str_c(analysis_path, "gliph/kspbmc_gliph_run/gliph_clusters_HLA.csv", sep = "/")
+# KSPBMC GLIPH table
+kspbmc_gliph_cluster_pred_table <- read_csv(kspbmc_gliph_clusters_path,
+        show_col_types = FALSE) 
+kspbmc_gliph_hla_pred_table <- read_csv(kspbmc_gliph_hlapreds_path, 
+    show_col_types = FALSE)
+```
+
+```{r}
+options(repr.matrix.max.rows=5, repr.matrix.max.columns=5)
+# Total number of GLIPH groups identified from the KSPBMC dataset
+print(str_c("Total number of GLIPH groups in KSPBMC datasets",
+    length(unique(kspbmc_gliph_cluster_pred_table$pattern)), sep = " : "))
+print(str_c("Number of GLIPH groups of length >= 3",
+    kspbmc_gliph_cluster_pred_table |> 
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        pull(pattern) |>
+        unique() |>
+        length(), sep = " : ")) 
+print(str_c("Number of GLIPH groups of length >= 3, vb_score <= 0.01, unique CDR3s >= 3, and unique PTIDs >= 3",
+    kspbmc_gliph_cluster_pred_table |> 
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+        mutate(patient_id = if_else(str_detect(repertoire_id, "KOBS"), repertoire_id,
+            str_extract(repertoire_id, "008_\\d+")),
+            pattern = if_else(pattern == "single", TcRb, pattern)) |>
+        group_by(pattern) |>
+        mutate(number_of_unique_cdr = length(unique(TcRb)),
+                number_of_unique_ptid = length(unique(patient_id))) |>
+        filter(vb_score <= 0.01 & number_of_unique_cdr >= 3 &
+                number_of_unique_ptid >= 3) |>
+        pull(pattern) |>
+        unique() |>
+        length(), sep = " : ")) 
+```
+
+```{r}
+# Filter out high confidence GLIPH groups with a pattern length of >2 where, 
+# the pattern has at 3 unique CDR3s associated with it, at least 3 PTIDs 
+# associated with it and with a vb_score <= 0.01
+kspbmc_hc_gliph_cluster_table <- kspbmc_gliph_cluster_pred_table |>
+  dplyr::select(pattern, vb_score, hla_score, expansion_score, TcRb, Sample, V, J,
+    Freq) |>
+  separate(Sample, into = c("repertoire_id", "cohort"), sep = ":") |>
+  mutate(patient_id = if_else(str_detect(repertoire_id, "KOBS"), repertoire_id,
+    str_extract(repertoire_id, "008_\\d+"))) |>
+  group_by(pattern) |>
+  mutate(number_of_unique_cdr = length(unique(TcRb)),
+    number_of_unique_ptid = length(unique(patient_id))) |>
+  ungroup() |>
+  filter(vb_score <= 0.01 & number_of_unique_cdr >= 3 &
+    number_of_unique_ptid >= 3 & pattern != "single" & nchar(pattern) > 2)
+kspbmc_hc_gliph_cluster_table
+```
+
+```{r}
+# Filter out HLA predictions for high confidence GLIPH groups identified in the
+# previous step
+kspbmc_hc_gliph_hla_table <- kspbmc_gliph_hla_pred_table |>
+  dplyr::rename(sig_allele = `'HLA allele with lowest Fisher Score'`) |>
+  mutate(pattern = str_remove(pattern, "^[lg]")) |>
+  filter(pattern %in% kspbmc_hc_gliph_cluster_table$pattern & Pvalue <= 0.05) |>
+  dplyr::select(pattern, sig_allele, Pvalue)
+kspbmc_hc_gliph_hla_table
+```
+
+```{r}
+print(str_c("Total number of HLA restrictions predicted by GLIPH", 
+    nrow(kspbmc_gliph_hla_pred_table), sep = " : "))
+print(str_c("Total number of HLA restrictions for GLIPH gorups of length >= 3",
+    kspbmc_gliph_hla_pred_table |> 
+        mutate(pattern = str_remove(pattern, "^[lg]")) |>
+        filter(pattern != "single" & nchar(pattern) > 2) |>
+        nrow(), sep = " : ")) 
+print(str_c("Total number of significant HLA restrictions for GLIPH gorups of length >= 3",
+    kspbmc_gliph_hla_pred_table |> 
+        mutate(pattern = str_remove(pattern, "^[lg]")) |>
+        filter(pattern != "single" & nchar(pattern) > 2 & Pvalue <= 0.05) |>
+        nrow(), sep = " : ")) 
+```
+
+```{r}
+# Merge GLIPH clusters with significant HLA association
+kspbmc_high_confidence_gliph_groups <- kspbmc_hc_gliph_cluster_table |>
+  left_join(kspbmc_hc_gliph_hla_table, by = "pattern",
+    relationship = "many-to-many") 
+kspbmc_high_confidence_gliph_groups
+```
+
+```{r}
+# Annotate GLIPH groups with antigenic specificity based on the CDR3 sequences
+# they contain
+kspbmc_path_annotated_gliph_clusters <- kspbmc_hla_matched_tcr |>
+  distinct() |>
+  inner_join(kspbmc_high_confidence_gliph_groups, by = c("repertoire_id", "junction_aa" = "TcRb"),
+    relationship = "many-to-many") |>
+  dplyr::select(repertoire_id, pathology, pattern) |>
+  distinct()
+kspbmc_path_annotated_gliph_clusters
+```
+
+```{r}
+# Annotate GLIPH groups by antigenic specificity of CDR3s goruped within
+kspbmc_path_annotated_gliph_groups <- kspbmc_high_confidence_gliph_groups |>
+  dplyr::select(repertoire_id, pattern, TcRb, V, J) |>
+  left_join(kspbmc_path_annotated_gliph_clusters, by = c("repertoire_id", "pattern"), relationship = "many-to-many") |>
+  distinct() |>
+  mutate(pathology = if_else(is.na(pathology), "Clustered\nUnknown", pathology)) |>
+  group_by(TcRb, V, J) |>
+  mutate(npath = length(unique(pathology)),
+    pathology = str_c(unique(pathology), collapse =";")) |>
+  ungroup() |>
+  mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) 
+kspbmc_path_annotated_gliph_groups |>
+  group_by(pathology) |> 
+  summarize(count = length(unique(TcRb))) |>
+  print(n = 11)
+```
+
+```{r}
+kspbmc_gliph_nprod_table <- kspbmc_annotated_nprod_table |>
+    left_join(kspbmc_path_annotated_gliph_groups, by = c("repertoire_id", 
+        "junction_aa" = "TcRb", "v_call" = "V",
+        "j_call" = "J"), relationship = "many-to-many") |>
+    distinct() |>
+    dplyr::select(cohort, patient_id, repertoire_id, tissue_type, phenotype, 
+        pathology, junction_aa, v_call, j_call, duplicate_frequency) |>
+    mutate(pathology = if_else(is.na(pathology), "Unclustered\nUnknown", pathology),
+        phenotype = if_else(is.na(phenotype) , "Epidemic KS", phenotype)) |>
+    group_by(junction_aa, v_call, j_call ) |>
+    mutate(npath = length(unique(pathology)),
+        pathology = str_c(unique(pathology), collapse =";")) |>
+    ungroup() |>
+    mutate(pathology = if_else(npath > 1, "Multi-pathogen", pathology)) |>
+    distinct() |>
+    mutate(cohort = if_else(is.na(cohort), "KOBS", cohort))
+kspbmc_gliph_nprod_table
+```
+
+```{r}
+kspbmc_path_annotated_gliph_nprod_table <- kspbmc_gliph_nprod_table |>
+    group_by(cohort, repertoire_id, pathology, phenotype, tissue_type) |>
+    summarize(frequency = sum(duplicate_frequency)) |>
+    ungroup() 
+kspbmc_path_annotated_gliph_nprod_table
+```
+
+### Figure 8
+
+```{r}
+kspbmc_public_tcrs_plot <- kspbmc_path_annotated_nprod_table |>
+  mutate(frequency = frequency * 100) |>
+  ggboxplot(x = "pathology", y = "frequency", color = "phenotype", 
+    add = "jitter", order = c("CMV", "DENV1", "DENV3/4", "EBV", "HCV", "HIV-1",
+       "HSV-2",
+      "InfluenzaA", "M.tuberculosis", "SARS-CoV-2", "Other", "Multi-pathogen",
+      "Unknown")) |>
+  ggpar(xlab = FALSE, ylab = "Cummulative frequency", 
+    legend.title = "Cohort", 
+    format.scale = T, legend = "right",
+    ggtheme = theme_classic(base_size = 32),
+    palette = c("HIV & KSHV Positive" = "#fb8072", 
+  "Epidemic KS" = "#e41a1c", "KSHV Positive" = "#80b1d3",
+  "Endemic KS" = "#377eb8", "HIV Positive" = "#756bb1", "Control" = "#addd8e")) +
+  geom_hline(yintercept = 1, linetype = 2) + 
+  geom_hline(yintercept = 25, linetype = 2) + 
+  geom_hline(yintercept = 75, linetype = 2) + 
+  geom_hline(yintercept = 90, linetype = 2) + 
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks(sides = "l", short = unit(2,"mm"),
+    mid = unit(4,"mm"),long = unit(8,"mm"), size = 1) +
+  theme_classic(base_size = 26) +
+  theme(axis.text = element_text(face = "bold"))
+  
+kspbmc_public_gliph_plot <- kspbmc_path_annotated_gliph_nprod_table |>
+  mutate(frequency = frequency * 100) |>
+  ggboxplot(x = "pathology", y = "frequency", color = "phenotype", 
+    add = "jitter", order = c("CMV", "EBV", "HCV", "HIV-1",
+       "HSV-2", "InfluenzaA", "M.tuberculosis", "SARS-CoV-2", "Other", 
+       "Multi-pathogen",   "Clustered\nUnknown", "Unclustered\nUnknown")) |>
+  ggpar(xlab = FALSE, ylab = "Cummulative frequency", 
+    legend.title = "Cohort", 
+    format.scale = T, legend = "right",
+    ggtheme = theme_classic(base_size = 32),
+    palette = c("HIV & KSHV Positive" = "#fb8072", 
+  "Epidemic KS" = "#e41a1c", "KSHV Positive" = "#80b1d3",
+  "Endemic KS" = "#377eb8", "HIV Positive" = "#756bb1", "Control" = "#429f03")) +
+  geom_hline(yintercept = 1, linetype = 2) +
+  geom_hline(yintercept = 25, linetype = 2) +
+  geom_hline(yintercept = 75, linetype = 2) +  
+  geom_hline(yintercept = 90, linetype = 2) +  
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks(sides = "l", short = unit(2,"mm"),
+    mid = unit(4,"mm"),long = unit(8,"mm"), size = 1) + 
+  theme_classic(base_size = 26) +
+  theme(axis.text = element_text(face = "bold"))
+
+
+figure_eight_layout = "
+1111
+1111
+2222
+2222"
+figure_eight <- kspbmc_public_tcrs_plot +  
+    kspbmc_public_gliph_plot + 
+  plot_layout(design = figure_eight_layout, guides = "collect") +
+  plot_annotation(tag_levels = 'A') & theme(text = element_text('NimbusSan'),
+    legend.position = "right",
+    axis.title.x = element_blank())
+ggsave(str_c(figures_path, "pdf", "Figure_eight.pdf", sep = "/"), figure_eight, width = 36, 
+    height = 12, device = cairo_pdf, family = "Arial Unicode MS")
+ggsave(str_c(figures_path, "svg", "Figure_eight.svg", sep = "/"), figure_eight, width = 36, 
+    height = 12)
+ggsave(str_c(figures_path, "png", "Figure_eight.png", sep = "/"), figure_eight, width = 36, 
+    height = 12)
+```
+
