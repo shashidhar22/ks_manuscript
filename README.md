@@ -1,1 +1,9 @@
-# ks_manuscript
+# T-cells specific for KSHV and HIV migrate to Kaposi sarcoma tumors and persist over time
+
+This repository contains the code base to recreate the figure from our manuscript titled "T-cells specific for KSHV and HIV migrate to Kaposi sarcoma tumors and persist over time". 
+
+
+## Abstract
+Kaposi sarcoma-associated herpesvirus (KSHV) is the etiologic agent of Kaposi sarcoma (KS), which causes significant morbidity and mortality worldwide, particularly in people living with HIV (PLWH) and in sub-Saharan Africa where KSHV seroprevalence is high. Postulating that T-cells specific for KSHV and HIV would be attracted to KS tumors, we performed transcriptional profiling and T-cell receptor (TCR) repertoire analysis of tumor biopsies from 144 Ugandan adults with KS, 106 of whom were also living with HIV. We show that CD8+ T-cells and M2-polarized macrophages are the most common immune cells in KS tumors. The TCR repertoire of T-cells associated with KS tumors is shared across spatially and temporally distinct tumors from the same individual. Clusters of T-cells with predicted shared specificity for uncharacterized antigens, potentially encoded by KSHV or HIV, comprise ~25% of the T-cells in KS tumors. Single-cell RNA-sequencing of blood from a subset of 9 adults captured 4,283 unique  TCRs carried in 14,698 putative KSHV- or HIV-specific T-cells, which carried an antigen-experienced effector phenotype. T-cells engineered to express a representative sample of these TCRs showed high-avidity recognition of KSHV- or HIV-encoded antigens. These results suggest that a polyspecific, high-avidity KSHV- and HIV-specific T-cell response, potentially inhibited by M2 macrophages, migrates to and localizes with KS tumors. Further analysis of KSHV- and HIV-specific T-cells in KS tumors will provide insight into the pathogenesis of KS and could guide the development of specific immune therapy based on adoptive transfer or vaccination.
+
+
