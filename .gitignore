@@ -1,2 +1,12 @@
 #Input paths
 input_paths.yaml
+
+# Folders
+.claude
+.pytest_cache
+data/
+zenodo_data/
+output/
+legacy/
+reference/
+!zenodo_data/README.md
