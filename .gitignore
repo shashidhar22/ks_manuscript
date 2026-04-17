@@ -10,3 +10,8 @@ output/
 legacy/
 reference/
 !zenodo_data/README.md
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
