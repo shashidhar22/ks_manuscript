@@ -320,9 +320,14 @@ def _draw_dose_response(
             short_name = dn_lines[0].strip()
             cdr3 = dn_lines[1].strip() if len(dn_lines) > 1 else ""
             label = _bold_with_sub(short_name)
-            if cdr3:
+            if cdr3 and "Specific TCR" in short_name:
+                hm_lines.append(f"  {label}")
+                hm_lines.append(f"     ({cdr3}): {hm_x} nM")
+            elif cdr3:
                 label += f" ({cdr3})"
-            hm_lines.append(f"  {label}: {hm_x} nM")
+                hm_lines.append(f"  {label}: {hm_x} nM")
+            else:
+                hm_lines.append(f"  {label}: {hm_x} nM")
 
         if len(hm_lines) > 1:
             ax.text(ec50_x, 0.98, "\n".join(hm_lines), transform=ax.transAxes,
@@ -368,6 +373,8 @@ _TCR_RENAME = {
     "KS TCR 3 \nCASSIAGHEQYF": "ORF6329-337-Specific TCR\nCASSIAGHEQYF",
     "KS TCR 2\nCASSIAGHEQFF": "ORF6329-337-Specific TCR\nCASSIAGHEQFF",
     "KS TCR 3\nCASSIAGHEQYF": "ORF6329-337-Specific TCR\nCASSIAGHEQYF",
+    "KS TCR 24\nCAWNLGDSNQPQHF": "ORF59171-179-Specific TCR\nCAWNLGDSNQPQHF",
+    "KS TCR 24 \nCAWNLGDSNQPQHF": "ORF59171-179-Specific TCR\nCAWNLGDSNQPQHF",
 }
 
 
@@ -398,10 +405,10 @@ def render(out_dir: Path) -> Path:
     # Panel C — mNeonGreen dose-response (ORF57 peptide variants)
     ax_c = fig.add_subplot(gs[1, 0])
     conc_c, groups_c = _load_dose_response(
-        _DATA_DIR / "Figure5_PanelC.csv", has_conc_col=False
+        _DATA_DIR / "Figure5_PanelC.csv", has_conc_col=True
     )
     _draw_dose_response(ax_c, conc_c, groups_c,
-                        ylabel="mNeonGreen+ (%)", panel_letter="C",
+                        ylabel="Specific Lysis (%)", panel_letter="C",
                         ylim_top=100)
 
     # Panel D — mNeonGreen dose-response (ORF59)
@@ -410,8 +417,8 @@ def render(out_dir: Path) -> Path:
         _DATA_DIR / "Figure5_PanelD.csv", has_conc_col=False
     )
     _draw_dose_response(ax_d, conc_d, groups_d,
-                        ylabel="mNeonGreen+ (%)", panel_letter="D",
-                        ylim_top=80)
+                        ylabel="Specific Lysis (%)", panel_letter="D",
+                        ylim_top=80, rename=_TCR_RENAME)
 
     out = Path(out_dir) / "Figure_05.pdf"
     fig.savefig(out)

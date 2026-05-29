@@ -11,6 +11,7 @@ the companion code repository.
 zenodo_data/
   rnaseq/                  RNA-seq viral expression data (Figures 1)
   airrseq/                 AIRR-seq TCR repertoire data (Figures 2, 3)
+    scvdj/                 Single-cell V(D)J contig annotations (10x), per sample
   cibersort/               CIBERSORTx immune deconvolution (Supp. Figure 2)
   tcr_database/            Known pathogen-associated TCR reference (Figures 2, 3)
   nanostring/              NanoString targeted expression (Supp. Figure 1)
@@ -28,6 +29,7 @@ zenodo_data/
 | kshv_salmon_tpm_heatmap.tsv | KSHV gene expression (TPM) across all samples |
 | hiv1_salmon_tpm_heatmap.tsv | HIV-1 gene expression (TPM) across all samples |
 | kshv_gene_map.tsv | KSHV gene ID to name and lytic stage mapping |
+| GRCh38_KSHV_HIV1.gtf.gz | Combined human (GENCODE v47) + KSHV (RefSeq GCF_000838265.1) + HIV-1 (RefSeq GCF_000864765.1) annotation used for STAR/Salmon quantification |
 
 ### airrseq/
 | File | Description |
@@ -35,6 +37,7 @@ zenodo_data/
 | study_annotated_nprod_table.parquet | Productive TCR sequences with cohort annotations |
 | kstme_gliph_clusters.csv | GLIPH2 clustering results for TCR specificity grouping |
 | kstme_paper_tcr_tables.rda | R data archive with TCR summary and Renyi diversity tables |
+| scvdj/&lt;sample&gt;/&lt;sample&gt;_contig_annotations.csv | Single-cell 10x V(D)J contig annotations, one folder per sample (36 samples from 13 PBMC donors) |
 
 ### cibersort/
 | File | Description |
