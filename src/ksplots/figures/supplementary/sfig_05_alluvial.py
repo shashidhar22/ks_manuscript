@@ -1,4 +1,4 @@
-"""Supplementary Figure 3 — Clone tracking alluvials + COS7 reporter assays.
+"""Supplementary Figure 5 — Clone tracking alluvials + COS7 reporter assays.
 
 * **Panel A** — TRB clone tracking alluvial for subject 008_098 (HIV-, CR).
 * **Panel B** — TRB clone tracking alluvial for subject 008_002 (HIV+, PR).
@@ -28,6 +28,14 @@ from ...config import WETLAB_DIR, WETLAB_TCR_COLORS
 
 _IMMUNOSEQ_DIR = WETLAB_DIR / "R Projects" / "ImmunoSEQ_KS"
 _PANEL_CSV_DIR = WETLAB_DIR / "data"
+
+# Horizontal position of the panel letters, in axes-fraction units.
+# 0.0 = at the y-axis; negative = out in the left margin, clear of the
+# y-axis label and tick labels. Make more negative to push further out.
+_PANEL_LETTER_X = -0.06
+_PANEL_LETTER_SIZE = 64  # panel-letter font size (pt)
+_PANEL_LETTER_Y_ALLUVIAL = 0.97  # A/B letter height (axes frac); <1.0 nudges down
+
 
 # ---------------------------------------------------------------------------
 # LymphoSeq2-equivalent functions
@@ -129,6 +137,7 @@ def _draw_alluvial(
     annotation: str,
     top_n: int = 100,
     annotation_right: bool = False,
+    color_key: list[tuple[str, str, str]] | None = None,
 ) -> None:
     """Draw an alluvial clone-tracking plot.
 
@@ -136,6 +145,10 @@ def _draw_alluvial(
     ----------
     sample_files : list of (sample_id, display_label, tsv_path)
     highlight_map : CDR3 amino-acid sequence -> colour string
+    color_key : optional extra annotation lines rendered below *annotation*,
+        each a ``(prefix, word, colour)`` tuple where *prefix* is drawn in
+        black and *word* in *colour* (e.g. ``("TCR-2: ", "Red", "red")``).
+        Only used for left-aligned annotations.
     """
     # --- Load, filter, aggregate per sample ---
     sample_dfs: dict[str, pd.DataFrame] = {}
@@ -223,12 +236,41 @@ def _draw_alluvial(
     )
     ax.set_ylabel("TCRB sequence frequency", fontsize=24, fontweight="bold")
     ax.tick_params(axis="y", labelsize=18)
-    ax.set_title(panel_letter, loc="left", fontweight="bold", fontsize=28)
+    ax.text(_PANEL_LETTER_X, _PANEL_LETTER_Y_ALLUVIAL, panel_letter, transform=ax.transAxes,
+            fontweight="bold", fontsize=_PANEL_LETTER_SIZE, ha="right", va="bottom")
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
     # --- Annotation text ---
-    if annotation_right:
+    if color_key:
+        # Multi-colour annotation: stack the plain annotation lines, then one
+        # row per color_key entry with the colour word drawn in its colour.
+        # matplotlib can't colour part of a single text string, so build the
+        # block out of offsetboxes (VPacker = lines; HPacker = prefix+word).
+        # Works for both left- and right-aligned blocks (annotation_right).
+        from matplotlib.offsetbox import (
+            AnnotationBbox, HPacker, TextArea, VPacker,
+        )
+        _tp = dict(fontsize=20, fontweight="bold")
+        children: list = [TextArea(ln, textprops=_tp)
+                          for ln in annotation.split("\n")]
+        for prefix, word, col in color_key:
+            children.append(HPacker(
+                children=[
+                    TextArea(prefix, textprops=_tp),
+                    TextArea(word, textprops={**_tp, "color": col}),
+                ],
+                align="baseline", pad=0, sep=0,
+            ))
+        align = "right" if annotation_right else "left"
+        anchor_x = 0.98 if annotation_right else 0.02
+        box_x = 1 if annotation_right else 0
+        box = VPacker(children=children, align=align, pad=0, sep=6)
+        ax.add_artist(AnnotationBbox(
+            box, (anchor_x, 0.98), xycoords="axes fraction",
+            box_alignment=(box_x, 1), frameon=False, pad=0,
+        ))
+    elif annotation_right:
         ax.text(
             0.98, 0.98, annotation, transform=ax.transAxes,
             fontsize=20, fontweight="bold", va="top", ha="right",
@@ -249,7 +291,7 @@ def _draw_alluvial(
         ncol = len(handles)  # single line
         ax.legend(
             handles=handles, fontsize=18, loc="lower center",
-            bbox_to_anchor=(0.5, -0.18), ncol=ncol,
+            bbox_to_anchor=(0.5, -0.21), ncol=ncol,
             frameon=False, title="TCRB CDR3 Sequence",
             title_fontproperties={"weight": "bold", "size": 20},
         )
@@ -459,12 +501,18 @@ def render(out_dir: Path) -> Path:
         ax_a, _SAMPLES_098, _HIGHLIGHT_098,
         panel_letter="A",
         annotation="008_098 HIV\u2013\nComplete Response",
+        # Colour words match the highlighted clones: TCR-2 = CASSIAGHEQFF (red),
+        # TCR-21 = CASSTGVYGYTF (royalblue).
+        color_key=[("TCR-2: ", "Red", "red"),
+                   ("TCR-21: ", "Blue", "royalblue")],
     )
     _draw_alluvial(
         ax_b, _SAMPLES_002, _HIGHLIGHT_002,
         panel_letter="B",
         annotation="008_002 HIV+\nPartial Response",
         annotation_right=True,
+        # Colour word matches the highlighted clone: TCR-24 = CAWNLGDSNQPQHF (purple).
+        color_key=[("TCR-24: ", "Purple", "purple")],
     )
 
     # Bottom row: bar charts
@@ -486,7 +534,8 @@ def render(out_dir: Path) -> Path:
                 )
             df = df[df["label"].apply(_match)].reset_index(drop=True)
         _draw_grouped_bars(ax, df, color, hla_allele=hla, ylim=80)
-        ax.set_title(letter, loc="left", fontweight="bold", fontsize=28)
+        ax.text(_PANEL_LETTER_X, 1.0, letter, transform=ax.transAxes,
+                fontweight="bold", fontsize=_PANEL_LETTER_SIZE, ha="right", va="bottom")
         bar_axes.append(ax)
 
     # Shared legend for all bar panels — ordered: (-) HLA, (+) alleles, OKT3
@@ -518,7 +567,7 @@ def render(out_dir: Path) -> Path:
             ncol=len(ordered_legend), fontsize=18, frameon=False,
         )
 
-    out = Path(out_dir) / "Supplementary_Figure_03.pdf"
+    out = Path(out_dir) / "Supplementary_Figure_05.pdf"
     fig.savefig(out)
     plt.close(fig)
     return out

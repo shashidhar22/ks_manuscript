@@ -19,8 +19,11 @@ _REGISTRY: Dict[str, str] = {
     "4": "ksplots.figures.figure_04_wetlab",
     "5": "ksplots.figures.figure_05_wetlab",
     "6": "ksplots.figures.figure_06_pel",
-    "s3": "ksplots.figures.supplementary.sfig_03_alluvial",
+    "7": "ksplots.figures.figure_07",
+    "s3": "ksplots.figures.supplementary.sfig_03_specific_lysis",
     "s4": "ksplots.figures.supplementary.sfig_04_cos7",
+    "s5": "ksplots.figures.supplementary.sfig_05_alluvial",
+    "s6": "ksplots.figures.supplementary.sfig_06",
 }
 
 

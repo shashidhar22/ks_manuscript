@@ -100,7 +100,7 @@ def render(out_dir: Path) -> Path:
 
     arr = mat.to_numpy(dtype=float)
 
-    fig, ax = plt.subplots(figsize=(20, 12))
+    fig, ax = plt.subplots(figsize=(20, 14))
     # Clip negative values to 0 (reference uses viridis with breaks 2–10).
     arr = np.clip(arr, 0, None)
     im = ax.imshow(arr, aspect="auto", cmap="viridis", interpolation="nearest",
@@ -137,24 +137,27 @@ def render(out_dir: Path) -> Path:
     # Endemic box
     y0_end = 1.0 - len(ENDEMIC) / n_rows
     h_end = len(ENDEMIC) / n_rows
-    _draw_boxed_label(ax, x=1.005, y=y0_end, w=0.06, h=h_end,
+    _draw_boxed_label(ax, x=1.005, y=y0_end, w=0.085, h=h_end,
                       text="Endemic\nKS", fontsize=14)
     # Epidemic box
     y0_epi = 0.0
     h_epi = len(EPIDEMIC) / n_rows
-    _draw_boxed_label(ax, x=1.005, y=y0_epi, w=0.06, h=h_epi,
+    _draw_boxed_label(ax, x=1.005, y=y0_epi, w=0.085, h=h_epi,
                       text="Epidemic\nKS", fontsize=14)
 
     ax.set_title("", pad=45)  # space for banners
 
     # Colorbar.
-    cb = fig.colorbar(im, ax=ax, shrink=0.4, pad=0.12)
+    cb = fig.colorbar(im, ax=ax, shrink=0.4, pad=0.09)
     cb.set_label("Log2FC", fontsize=15)
     cb.set_ticks([2, 4, 6, 8, 10])
     cb.ax.tick_params(labelsize=13)
 
     fig.tight_layout()
     out = Path(out_dir) / "Supplementary_Figure_01.pdf"
-    fig.savefig(out)
+    # bbox_inches="tight" crops to the content with a uniform margin on all
+    # sides → equal left/right whitespace, and guarantees the rotated x-axis
+    # gene labels (and the right-side boxes/colorbar) are fully included.
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
     return out

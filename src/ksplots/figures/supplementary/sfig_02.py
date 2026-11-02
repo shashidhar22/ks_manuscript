@@ -27,6 +27,11 @@ from ...io.metadata import load_study_metadata
 CIBERSORT_DIR = DATA_DIR / "cibersort"
 DROP_COLS = {"P-value", "Correlation", "RMSE", "Absolute score (sig.score)"}
 
+# Panel-letter styling (A/B). _PANEL_LETTER_X is a shared figure-fraction x so
+# the two letters line up vertically; size is a single tuning knob.
+_PANEL_LETTER_SIZE = 70
+_PANEL_LETTER_X = 0.03
+
 CELL_TYPE_ORDER = [
     "T cells regulatory (Tregs)",
     "T cells gamma delta",
@@ -248,8 +253,6 @@ def _draw_panel_a(ax, rdf: pd.DataFrame) -> None:
         _draw_boxed_label(ax, x=x0, y=1.005, w=x1 - x0, h=0.05,
                           text=label, fontsize=14)
 
-    ax.text(-0.08, 1.12, "A", transform=ax.transAxes,
-            fontsize=24, fontweight="bold", va="top")
     return im
 
 
@@ -314,13 +317,13 @@ def _draw_panel_b(axes: list, rdf: pd.DataFrame) -> None:
             ax.plot([0, 0, 1, 1], [y_bar, y_bar * 1.02, y_bar * 1.02, y_bar],
                     color="black", lw=1.0, clip_on=False)
             ax.text(0.5, y_bar * 1.04, p_label, ha="center", va="bottom",
-                    fontsize=14, fontstyle="italic")
+                    fontsize=22, fontstyle="italic")
 
-        ax.set_title(ct, fontsize=16, fontweight="bold", pad=14)
-        ax.set_ylabel("Abundance (%)" if i == 0 else "", fontsize=17)
+        ax.set_title(ct, fontsize=24, fontweight="bold", pad=14)
+        ax.set_ylabel("Abundance (%)" if i == 0 else "", fontsize=25)
         ax.set_xlabel("")
-        ax.tick_params(axis="x", labelsize=15)
-        ax.tick_params(axis="y", labelsize=15)
+        ax.tick_params(axis="x", labelsize=22)
+        ax.tick_params(axis="y", labelsize=22)
         for spine in ("top", "right"):
             ax.spines[spine].set_visible(False)
 
@@ -344,18 +347,31 @@ def render(out_dir: Path) -> Path:
     ax_a = fig.add_subplot(gs[0, :4])
     cax = fig.add_subplot(gs[0, 4])
     im = _draw_panel_a(ax_a, rdf)
+    # Pull the colorbar in close to the heatmap (the gridspec wspace leaves a
+    # wide gap); reposition it just right of the heatmap's right edge.
+    pos_a = ax_a.get_position()
+    pos_c = cax.get_position()
+    cax.set_position([pos_a.x1 + 0.012, pos_c.y0, pos_c.width, pos_c.height])
     cb = fig.colorbar(im, cax=cax)
-    cb.set_label("Cell type\nabundance", fontsize=16)
+    cb.set_label("Cell type abundance", fontsize=20)
     cb.set_ticks([10, 20, 30, 40, 50])
-    cb.ax.tick_params(labelsize=14)
+    cb.ax.tick_params(labelsize=18)
 
     # Panel B: 4 boxplots with shared y-axis.
     axes_b = [fig.add_subplot(gs[1, i]) for i in range(4)]
     _draw_panel_b(axes_b, rdf)
-    axes_b[0].text(-0.3, 1.12, "B", transform=axes_b[0].transAxes,
-                   fontsize=24, fontweight="bold", va="top")
+    # Panel letters A/B — shared figure-x so they align vertically; each y is
+    # pinned just above its own panel (reproduces the old axes-frac 1.12 spot).
+    for ax, letter in ((ax_a, "A"), (axes_b[0], "B")):
+        pos = ax.get_position()
+        fig.text(_PANEL_LETTER_X, pos.y0 + 1.12 * pos.height, letter,
+                 fontsize=_PANEL_LETTER_SIZE, fontweight="bold",
+                 ha="left", va="top")
 
     out = Path(out_dir) / "Supplementary_Figure_02.pdf"
-    fig.savefig(out)
+    # bbox_inches="tight" crops to content with uniform padding on all sides →
+    # equal left/right whitespace (content is otherwise left-shifted on the
+    # full canvas, with "Cell type" flush at the left edge).
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
     return out

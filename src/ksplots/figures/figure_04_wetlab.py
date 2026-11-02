@@ -138,8 +138,10 @@ def _draw_panel_a(ax) -> None:
     ax.set_xlabel("mNeonGreen+ (%)", fontsize=20, fontweight="bold")
     ax.set_xlim(0, max(values.max() * 1.1, 80))
     ax.tick_params(axis="x", labelsize=18)
-    leg = ax.legend(fontsize=15, loc="lower right", frameon=False, ncol=1,
-                    prop={"weight": "bold"})
+    # Vertical center shared with Panel B legend (y=0.56); loc="center right".
+    # size goes INSIDE prop — matplotlib ignores fontsize= when prop is set.
+    ax.legend(loc="center right", bbox_to_anchor=(1.04, 0.50), frameon=False,
+              ncol=1, prop={"weight": "bold", "size": 16})
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
@@ -293,8 +295,10 @@ def _draw_panel_b(ax) -> None:
         ["$10^{2}$", "$10^{1}$", "$10^{0}$", "$10^{-1}$", "$10^{-2}$", "0"]
     )
 
-    ax.legend(fontsize=16, loc="center left", bbox_to_anchor=(1.02, 0.5),
-              frameon=False, prop={"weight": "bold"})
+    # Moved left to just inside the right edge, in the clear band below the EC50
+    # box and above the curves; vertical center (y=0.56) matches Panel A.
+    ax.legend(loc="center right", bbox_to_anchor=(1.30, 0.50),
+              frameon=False, prop={"weight": "bold", "size": 16})
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
@@ -306,17 +310,17 @@ def _draw_panel_b(ax) -> None:
 def render(out_dir: Path) -> Path:
     fig = plt.figure(figsize=(20, 8))
     gs = GridSpec(1, 2, width_ratios=[0.42, 0.58], wspace=0.30,
-                  left=0.14, right=0.85, top=0.92, bottom=0.15)
+                  left=0.167, right=0.877, top=0.92, bottom=0.15)
 
     # Panel A: HLA restriction bars
     ax_a = fig.add_subplot(gs[0])
     _draw_panel_a(ax_a)
-    ax_a.set_title("A", loc="left", fontweight="bold", fontsize=24)
+    fig.text(0.142, 0.93, "A", fontsize=36, fontweight="bold", ha="left", va="bottom")
 
     # Panel B: CRA dose-response
     ax_b = fig.add_subplot(gs[1])
     _draw_panel_b(ax_b)
-    ax_b.set_title("B", loc="left", fontweight="bold", fontsize=24)
+    fig.text(0.475, 0.93, "B", fontsize=36, fontweight="bold", ha="left", va="bottom")
 
     out = Path(out_dir) / "Figure_04.pdf"
     fig.savefig(out)

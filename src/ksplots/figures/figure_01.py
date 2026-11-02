@@ -307,8 +307,16 @@ def _prepare(
     return mat, row_spans, col_spans
 
 
+# Cohort label boxes (left margin): text is auto-sized to fill each box's
+# FIXED height (box dimensions are unchanged). _COHORT_LABEL_MAX_SIZE caps the
+# size so wide labels don't overflow the fixed box width; small cohorts (short
+# boxes) shrink to fit rather than spilling across their borders.
+_COHORT_LABEL_MAX_SIZE = 28.0
+_COHORT_LABEL_FILL = 0.80   # fraction of box height the 3 text lines may fill
+
+
 def _draw_boxed_label(ax, x: float, y: float, w: float, h: float, text: str,
-                      fontsize: int = 7, fontweight: str = "bold") -> None:
+                      fontsize: float = 7, fontweight: str = "bold") -> None:
     """Draw a black-bordered rectangle with centred text inside (axes coords)."""
     ax.add_patch(Rectangle((x, y), w, h, transform=ax.transAxes,
                            facecolor="white", edgecolor="black",
@@ -320,7 +328,7 @@ def _draw_boxed_label(ax, x: float, y: float, w: float, h: float, text: str,
 
 def _draw_panel(fig, ax, mat: pd.DataFrame, row_spans, col_spans, vmax: float,
                 panel_title: str, show_row_labels: bool, cohort_box_width: float,
-                name_lookup: dict[str, str]):
+                name_lookup: dict[str, str], title_x: float | None = None):
     arr = np.log2(mat.to_numpy(dtype=float) + 1.0)
     im = ax.imshow(arr, aspect="auto", cmap="viridis", interpolation="nearest",
                    vmin=0, vmax=vmax)
@@ -353,9 +361,17 @@ def _draw_panel(fig, ax, mat: pd.DataFrame, row_spans, col_spans, vmax: float,
     # Cohort boxes on the far left (only on KSHV panel).
     if show_row_labels:
         n_rows = len(mat.index)
+        # Axes height in points, for fitting label text to each box's height.
+        ax_h_pt = ax.get_position().height * fig.get_figheight() * 72.0
         for label, start, end in row_spans:
             y0 = 1.0 - end / n_rows
             y1 = 1.0 - start / n_rows
+            # Auto-size the 3-line label (2-line cohort name + "(n = N)") to the
+            # box height; cap so wide labels fit the fixed box width.
+            box_h_pt = (y1 - y0) * ax_h_pt
+            n_lines = 3
+            fit = box_h_pt * _COHORT_LABEL_FILL / (n_lines * 1.2)
+            fontsize = max(12.0, min(_COHORT_LABEL_MAX_SIZE, fit))
             _draw_boxed_label(
                 ax,
                 x=-cohort_box_width - 0.07,
@@ -363,7 +379,7 @@ def _draw_panel(fig, ax, mat: pd.DataFrame, row_spans, col_spans, vmax: float,
                 w=cohort_box_width,
                 h=y1 - y0,
                 text=f"{label}\n(n = {end - start})",
-                fontsize=20,
+                fontsize=fontsize,
             )
 
     # Lytic-stage boxes above each column group.
@@ -381,7 +397,11 @@ def _draw_panel(fig, ax, mat: pd.DataFrame, row_spans, col_spans, vmax: float,
             fontsize=20,
         )
 
-    ax.set_title(panel_title, loc="left", fontweight="bold", fontsize=26, pad=58)
+    # title_x (axes-fraction left edge) lets a narrow panel's title be pulled
+    # left so it doesn't overshoot into the right margin (loc="left" default = 0).
+    title_kw = {} if title_x is None else {"x": title_x}
+    ax.set_title(panel_title, loc="left", fontweight="bold", fontsize=26, pad=58,
+                 **title_kw)
     return im
 
 
@@ -419,13 +439,13 @@ def render(out_dir: Path) -> Path:
     cax_h = fig.add_subplot(gs[1, 2])
 
     im_k = _draw_panel(fig, ax_k, kshv_mat, kshv_rows, kshv_cols, vmax=5.0,
-                       panel_title="A.  KSHV gene\n      expression",
+                       panel_title="A.  KSHV gene expression",
                        show_row_labels=True, cohort_box_width=0.20,
                        name_lookup=name_lookup)
     im_h = _draw_panel(fig, ax_h, hiv_mat, hiv_rows, hiv_cols, vmax=0.4,
-                       panel_title="B.  HIV gene\n      expression",
+                       panel_title="B.  HIV gene expression",
                        show_row_labels=False, cohort_box_width=0.0,
-                       name_lookup=name_lookup)
+                       name_lookup=name_lookup, title_x=-0.6)
 
     cb_k = fig.colorbar(im_k, cax=cax_k)
     cb_k.set_label("KSHV log2(TPM + 1)", fontsize=17)

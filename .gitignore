@@ -15,3 +15,6 @@ reference/
 __pycache__/
 *.pyc
 *.egg-info/
+
+# Local virtual environment
+.venv/

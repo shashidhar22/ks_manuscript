@@ -39,6 +39,23 @@ _COLORS = {
 
 _MARKERS = ["s", "o", "^", "v", "D", "<", ">", "p"]
 
+# Panel letters (A/B/C/D) drawn just outside the upper-left of each panel's
+# y-axis. _PANEL_LETTER_X is the single nudge knob (axes-fraction x, more
+# negative = further out past the y-axis); _PANEL_LETTER_SIZE is the font size.
+_PANEL_LETTER_X = -0.08
+_PANEL_LETTER_SIZE = 50  # matches Fig 4's apparent letter size (glyph-height/page-width)
+
+# Legend styling. Legends sit BELOW each panel (loc="upper center"), centered
+# under the plot so they never extend past the plotting width. _LEGEND_Y is the
+# anchor y in axes-fraction (negative = below the x-axis label; more negative =
+# further down). Panels with >=4 entries (Panel C) use 2 columns to stay compact.
+_LEGEND_FONTSIZE = 30
+_LEGEND_Y = -0.13
+
+# Numeric tick-label size for the x- and y-axes (shared by all four panels).
+# Kept just below the 28pt axis-title size so the title>tick hierarchy holds.
+_TICK_LABELSIZE = 26
+
 
 # ---------------------------------------------------------------------------
 # 4PL fitting
@@ -261,9 +278,17 @@ def _draw_dose_response(
     invert_x: bool = True,
     rename: dict[str, str] | None = None,
     ec50_x: float = 0.98,
+    ec50_y: float = 0.98,
     show_ec50: bool = True,
+    exclude_ec50: set[str] | None = None,
 ) -> None:
-    """Draw dose-response curves with EC50 annotation."""
+    """Draw dose-response curves with EC50 annotation.
+
+    *exclude_ec50* names groups whose EC50 is not biologically meaningful
+    (e.g. a flat, non-responsive peptide): their half-max dashed lines and
+    EC50-box entry are suppressed, while their data curve is still drawn.
+    """
+    exclude_ec50 = exclude_ec50 or set()
     X_ZERO = 3e-3  # pseudo-x for concentration = 0
 
     curve_data = {}
@@ -286,7 +311,10 @@ def _draw_dose_response(
                     capsize=3, linewidth=1.8, label=disp_name, zorder=3)
         curve_data[name] = (x_plot, mean)
         if show_ec50:
-            ec50_values[name] = _fit_ec50(conc, mean, bounds_top=ylim_top)
+            ec50_values[name] = (
+                None if name in exclude_ec50
+                else _fit_ec50(conc, mean, bounds_top=ylim_top)
+            )
 
     if show_ec50:
         # Draw 1/2 max marker lines
@@ -325,7 +353,7 @@ def _draw_dose_response(
             hm_lines.append(f"  {label}: {hm_x} nM")
 
         if len(hm_lines) > 1:
-            ax.text(ec50_x, 0.98, "\n".join(hm_lines), transform=ax.transAxes,
+            ax.text(ec50_x, ec50_y, "\n".join(hm_lines), transform=ax.transAxes,
                     fontsize=22, verticalalignment="top", horizontalalignment="right",
                     bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
                               edgecolor="grey", alpha=0.9))
@@ -335,7 +363,7 @@ def _draw_dose_response(
     ax.set_ylabel(ylabel, fontsize=28, fontweight="bold")
     ax.set_xlabel("Peptide Concentration (nM)", fontsize=28)
     ax.set_ylim(0, ylim_top)
-    ax.tick_params(labelsize=22)
+    ax.tick_params(labelsize=_TICK_LABELSIZE)
 
     if invert_x:
         ax.invert_xaxis()
@@ -351,9 +379,12 @@ def _draw_dose_response(
     ax.set_xticks(tick_vals)
     ax.set_xticklabels(tick_labels)
 
-    ax.set_title(panel_letter, loc="left", fontweight="bold", fontsize=28)
-    ax.legend(fontsize=24, loc="center left", bbox_to_anchor=(1.02, 0.5),
-              frameon=False, prop={"weight": "bold"})
+    ax.text(_PANEL_LETTER_X, 1.0, panel_letter, transform=ax.transAxes,
+            fontweight="bold", fontsize=_PANEL_LETTER_SIZE,
+            ha="right", va="bottom")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, _LEGEND_Y),
+              ncol=(2 if len(groups) >= 4 else 1),
+              frameon=False, prop={"weight": "bold", "size": _LEGEND_FONTSIZE})
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
@@ -372,9 +403,9 @@ _TCR_RENAME = {
 
 
 def render(out_dir: Path) -> Path:
-    fig = plt.figure(figsize=(28, 20))
-    gs = GridSpec(2, 2, hspace=0.35, wspace=0.55,
-                  left=0.07, right=0.82, top=0.95, bottom=0.08)
+    fig = plt.figure(figsize=(28, 28))
+    gs = GridSpec(2, 2, hspace=0.48, wspace=0.26,
+                  left=0.08, right=0.96, top=0.96, bottom=0.16)
 
     # Panel A — Specific Lysis dose-response (ORF6, 2 TCRs)
     ax_a = fig.add_subplot(gs[0, 0])
@@ -383,7 +414,7 @@ def render(out_dir: Path) -> Path:
     )
     _draw_dose_response(ax_a, conc_a, groups_a,
                         ylabel="Specific Lysis (%)", panel_letter="A",
-                        ylim_top=80, rename=_TCR_RENAME, ec50_x=1.15)
+                        ylim_top=80, rename=_TCR_RENAME, ec50_x=1.0, ec50_y=1.03)
 
     # Panel B — IFN-gamma dose-response
     ax_b = fig.add_subplot(gs[0, 1])
@@ -398,20 +429,23 @@ def render(out_dir: Path) -> Path:
     # Panel C — mNeonGreen dose-response (ORF57 peptide variants)
     ax_c = fig.add_subplot(gs[1, 0])
     conc_c, groups_c = _load_dose_response(
-        _DATA_DIR / "Figure5_PanelC.csv", has_conc_col=False
+        _DATA_DIR / "Figure5_PanelC.csv", has_conc_col=True
     )
     _draw_dose_response(ax_c, conc_c, groups_c,
                         ylabel="mNeonGreen+ (%)", panel_letter="C",
-                        ylim_top=100)
+                        ylim_top=100,
+                        # ORF57_382-390 (TIPGMQSRR) is non-responsive; its
+                        # EC50 is not biologically meaningful, so suppress it.
+                        exclude_ec50={"ORF57382-390\nTIPGMQSRR"})
 
     # Panel D — mNeonGreen dose-response (ORF59)
     ax_d = fig.add_subplot(gs[1, 1])
     conc_d, groups_d = _load_dose_response(
-        _DATA_DIR / "Figure5_PanelD.csv", has_conc_col=False
+        _DATA_DIR / "Figure5_PanelD.csv", has_conc_col=True
     )
     _draw_dose_response(ax_d, conc_d, groups_d,
                         ylabel="mNeonGreen+ (%)", panel_letter="D",
-                        ylim_top=80)
+                        ylim_top=100)
 
     out = Path(out_dir) / "Figure_05.pdf"
     fig.savefig(out)

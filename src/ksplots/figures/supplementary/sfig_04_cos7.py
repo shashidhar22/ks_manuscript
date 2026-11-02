@@ -2,7 +2,8 @@
 
 Reproduces FIGURES_IT.pptx Slide 4:
 
-* **Panel A** — (placeholder, not yet implemented).
+* **Panel A** — Experimental schematic (BioRender), drawn from the packaged
+  asset ``src/ksplots/assets/sfig_04_panelA.png`` (carries its own "A" label).
 * **Panel B** — ORF6 fine epitope mapping ± HLA-B*45:01:
   ORF6, 1-454, 311-375, 311-339, 329-337, AEQALHIGA peptide, OKT3.
 * **Panel C** — ORF6 segment mapping ± HLA-B*45:01:
@@ -42,6 +43,11 @@ _OKT3_COLOR = "black"    # black for OKT3 positive control
 _TCR1_COLOR = "#D4A017"  # golden yellow for ORF6-Specific TCR 1
 _TCR2_COLOR = "#008080"  # teal for ORF6-Specific TCR 2
 _HLA_ALLELE = "B*45:01"
+
+# Horizontal position of the panel letters (B, C), in axes-fraction units.
+# 0.0 = at the y-axis; negative = out in the left margin, clear of the y-axis
+# label and tick labels. Make more negative to push the letters further out.
+_PANEL_LETTER_X = -0.06
 
 # ---------------------------------------------------------------------------
 # CSV loading
@@ -179,26 +185,36 @@ def _draw_grouped_bars(
 
 
 def render(out_dir: Path) -> Path:
-    fig = plt.figure(figsize=(22, 10))
+    fig = plt.figure(figsize=(22, 21))
 
     gs = GridSpec(
-        1, 2, width_ratios=[7, 7],
-        left=0.08, right=0.95, top=0.88, bottom=0.22, wspace=0.35,
+        2, 2, height_ratios=[1.5, 1], width_ratios=[7, 7],
+        left=0.08, right=0.95, top=0.96, bottom=0.12,
+        hspace=0.22, wspace=0.35,
     )
 
+    # Panel A — experimental schematic (BioRender), from the packaged asset.
+    # The PNG already carries its own bold "A" label, so none is added here.
+    ax_a = fig.add_subplot(gs[0, :])
+    schematic = Path(__file__).resolve().parents[2] / "assets" / "sfig_04_panelA.png"
+    ax_a.imshow(plt.imread(str(schematic)))
+    ax_a.axis("off")
+
     # Panel B — ORF6 fine epitope mapping (ORF6-Specific TCR 1)
-    ax_b = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
     df_b = _load_panel_csv(_PANEL_CSV_DIR / "SpFigure3_PanelC.csv")
     _draw_grouped_bars(ax_b, df_b, _TCR1_COLOR,
                        hla_allele="TCR1", ylim=80)
-    ax_b.set_title("B", loc="left", fontweight="bold", fontsize=28)
+    ax_b.text(_PANEL_LETTER_X, 1.0, "B", transform=ax_b.transAxes,
+              fontweight="bold", fontsize=76, ha="right", va="bottom")
 
     # Panel C — ORF6 segment mapping (ORF6-Specific TCR 2)
-    ax_c = fig.add_subplot(gs[0, 1])
+    ax_c = fig.add_subplot(gs[1, 1])
     df_c = _load_panel_csv(_PANEL_CSV_DIR / "SpFigure3_PanelD.csv")
     _draw_grouped_bars(ax_c, df_c, _TCR2_COLOR,
                        hla_allele="TCR2", ylim=80)
-    ax_c.set_title("C", loc="left", fontweight="bold", fontsize=28)
+    ax_c.text(_PANEL_LETTER_X, 1.0, "C", transform=ax_c.transAxes,
+              fontweight="bold", fontsize=76, ha="right", va="bottom")
 
     # Shared legend with mathtext subscripts for ORF6 residue range
     _tcr1_label = (

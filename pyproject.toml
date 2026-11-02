@@ -29,3 +29,8 @@ ksplots = "ksplots.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# Ship figure assets (e.g. the Supp Fig 4 BioRender schematic panel) in built
+# distributions so figures render from a pip-installed wheel, not just source.
+ksplots = ["assets/*.png"]
